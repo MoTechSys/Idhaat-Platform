@@ -64,7 +64,7 @@ export async function login(c: Context<AppEnv>, phoneRaw: unknown, password: unk
   for (const k of keys) if (await rateLimited(db, k)) return { ok: false, error: 'محاولات كثيرة. حاول بعد 15 دقيقة.' }
 
   const row = await db
-    .prepare('SELECT id, role, name, phone, password_hash, password_salt, active FROM users WHERE phone = ?')
+    .prepare('SELECT id, role, name, phone, avatar_v, password_hash, password_salt, active FROM users WHERE phone = ?')
     .bind(phone)
     .first<SessionUser & { password_hash: string; password_salt: string; active: number }>()
 
@@ -88,7 +88,7 @@ export async function login(c: Context<AppEnv>, phoneRaw: unknown, password: unk
     path: '/',
     maxAge: SESSION_TTL,
   })
-  return { ok: true, user: { id: row.id, role: row.role, name: row.name, phone: row.phone } }
+  return { ok: true, user: { id: row.id, role: row.role, name: row.name, phone: row.phone, avatar_v: row.avatar_v } }
 }
 
 export async function logout(c: Context<AppEnv>) {
@@ -103,7 +103,7 @@ export const sessionMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = getCookie(c, SESSION_COOKIE)
   if (token) {
     const user = await c.env.DB.prepare(
-      `SELECT u.id, u.role, u.name, u.phone FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT u.id, u.role, u.name, u.phone, u.avatar_v FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1`,
     )
       .bind(await sha256Hex(token), nowSec())

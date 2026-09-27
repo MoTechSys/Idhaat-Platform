@@ -15,7 +15,9 @@ import { notFound, page } from '../lib/render'
 import { randomHex } from '../lib/security'
 import { fmtDateTime, fmtRemaining, nowSec } from '../lib/time'
 import type { AppEnv, Env, SessionUser } from '../lib/types'
-import { Empty, PageHead } from '../views/layout'
+import { Empty, PageHead, Pager } from '../views/layout'
+import { paginate } from '../lib/paging'
+import { Icon } from '../views/icons'
 
 export const recordingRoutes = new Hono<AppEnv>()
 
@@ -182,7 +184,7 @@ recordingRoutes.get('/recordings/:id', requireRole(), async (c) => {
     c,
     l?.title ?? 'تسجيل',
     <>
-      <PageHead title={l?.title ?? 'تسجيل الحصة'} sub={`📚 ${l?.course_title ?? ''} • ⏳ متاح لمدة ${fmtRemaining(rec.expires_at! - nowSec())}`}>
+      <PageHead title={l?.title ?? 'تسجيل الحصة'} sub={`${l?.course_title ?? ''} • متاح لمدة ${fmtRemaining(rec.expires_at! - nowSec())}`}>
         <a class="btn btn-ghost" href={user.role === 'student' ? '/student/recordings' : `/lessons/${rec.lesson_id}`}>
           رجوع
         </a>
@@ -207,7 +209,7 @@ recordingRoutes.get('/recordings/:id', requireRole(), async (c) => {
         </div>
       </div>
       <p class="muted mt" style="font-size:.85rem">
-        🔒 هذا التسجيل خاص بك ومحمي باسمك ورقمك. مشاركته أو نشره مخالف لسياسة المنصة ويمكن تتبع مصدره.
+        <Icon name="lock" /> هذا التسجيل خاص بك ومحمي باسمك ورقمك. مشاركته أو نشره مخالف لسياسة المنصة ويمكن تتبع مصدره.
       </p>
     </>,
     { scripts: ['/static/player.js'] },
@@ -228,6 +230,7 @@ recordingRoutes.post('/recordings/:id/delete', requireRole('admin', 'teacher'), 
 export async function recordingsPage(c: Context<AppEnv>) {
   const user = c.get('user')!
   const recs = await recordingsFor(c.env.DB, user)
+  const { items, info } = paginate(recs, c.req.url)
   const now = nowSec()
   return page(
     c,
@@ -235,27 +238,28 @@ export async function recordingsPage(c: Context<AppEnv>) {
     <>
       <PageHead title="التسجيلات" sub="كل تسجيل متاح 48 ساعة من وقت رفعه، ثم يُحذف تلقائياً." />
       {recs.length ? (
+        <>
         <div class="list">
-          {recs.map((r) => {
+          {items.map((r) => {
             const left = r.expires_at - now
             return (
               <div class="item">
-                <div class="dot">🎬</div>
+                <div class="dot"><Icon name="clapperboard" /></div>
                 <div class="grow">
                   <div class="title">{r.lesson_title}</div>
                   <div class="meta">
-                    <span>📚 {r.course_title}</span>
-                    {user.role === 'student' && r.teacher_name && <span>👩‍🏫 {r.teacher_name}</span>}
+                    <span><Icon name="book-open" /> {r.course_title}</span>
+                    {user.role === 'student' && r.teacher_name && <span><Icon name="presentation" /> {r.teacher_name}</span>}
                     <span>رُفع {fmtDateTime(r.ready_at)}</span>
-                    {user.role !== 'student' && <span>👁️ {r.views} مشاهدة</span>}
+                    {user.role !== 'student' && <span><Icon name="eye" /> {r.views} مشاهدة</span>}
                   </div>
                   <span class={`badge ${left < 6 * 3600 ? 'bad' : 'warn'}`} style="margin-top:.3rem">
-                    ⏳ يُحذف بعد {fmtRemaining(left)}
+                    <Icon name="hourglass" /> يُحذف بعد {fmtRemaining(left)}
                   </span>
                 </div>
                 <div class="actions">
                   <a class="btn" href={`/recordings/${r.id}`}>
-                    ▶ مشاهدة
+                    <Icon name="play" /> مشاهدة
                   </a>
                   {user.role !== 'student' && (
                     <form method="post" action={`/recordings/${r.id}/delete`} data-confirm="حذف التسجيل نهائياً؟">
@@ -267,9 +271,11 @@ export async function recordingsPage(c: Context<AppEnv>) {
             )
           })}
         </div>
+        <Pager info={info} url={c.req.url} />
+        </>
       ) : (
         <div class="card">
-          <Empty icon="🎬" text="لا توجد تسجيلات متاحة حالياً." />
+          <Empty icon="clapperboard" text="لا توجد تسجيلات متاحة حالياً." />
         </div>
       )}
     </>,

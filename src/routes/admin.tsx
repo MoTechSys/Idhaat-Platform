@@ -11,7 +11,10 @@ import { lessonsFor } from '../lib/queries'
 import { notFound, page } from '../lib/render'
 import { fmtDate, fmtDateTime, isDate, nowSec, todayRiyadh } from '../lib/time'
 import type { AppEnv, Role } from '../lib/types'
-import { Empty, Money, PageHead, Stat } from '../views/layout'
+import { Empty, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
+import { pageInfo, readPage } from '../lib/paging'
+import { AvatarEditor } from './profile'
+import { Icon } from '../views/icons'
 import { LessonItem } from './lessons'
 
 export const adminRoutes = new Hono<AppEnv>()
@@ -49,7 +52,7 @@ adminRoutes.get('/admin', async (c) => {
     c,
     'لوحة الإدارة',
     <>
-      <PageHead title={`أهلاً ${user.name} 👋`} sub={fmtDateTime(now)}>
+      <PageHead title={`أهلاً ${user.name}`} sub={fmtDateTime(now)}>
         <a class="btn" href="/admin/lessons">
           + جدولة حصة
         </a>
@@ -62,7 +65,7 @@ adminRoutes.get('/admin', async (c) => {
       </div>
       {!!leads?.n && (
         <div class="alert info flex between">
-          <span>📥 لديك {leads.n} طلب تسجيل جديد من الموقع.</span>
+          <span><Icon name="inbox" /> لديك {leads.n} طلب تسجيل جديد من الموقع.</span>
           <a href="/admin/leads" class="btn btn-sm btn-soft">
             عرض
           </a>
@@ -71,7 +74,7 @@ adminRoutes.get('/admin', async (c) => {
       <div class="grid grid-2">
         <div class="card">
           <div class="card-head">
-            <h2>🔴 الآن والقادم اليوم</h2>
+            <h2><Icon name="radio" /> الآن والقادم اليوم</h2>
             <a href="/admin/live">عرض الكل</a>
           </div>
           {live.length + upcoming.length ? (
@@ -81,12 +84,12 @@ adminRoutes.get('/admin', async (c) => {
               ))}
             </div>
           ) : (
-            <Empty icon="☕" text="لا توجد حصص اليوم." />
+            <Empty icon="coffee" text="لا توجد حصص اليوم." />
           )}
         </div>
         <div class="card">
           <div class="card-head">
-            <h2>⏰ متابعة التحويلات</h2>
+            <h2><Icon name="calendar-clock" /> متابعة التحويلات</h2>
             <a href="/admin/finance/installments">الكل</a>
           </div>
           {overdue.length + soon.length ? (
@@ -119,7 +122,7 @@ adminRoutes.get('/admin', async (c) => {
               </table>
             </div>
           ) : (
-            <Empty icon="✅" text="لا توجد أقساط متأخرة أو مستحقة قريباً." />
+            <Empty icon="circle-check" text="لا توجد أقساط متأخرة أو مستحقة قريباً." />
           )}
         </div>
       </div>
@@ -145,13 +148,13 @@ adminRoutes.get('/admin/live', async (c) => {
       <div class="stats">
         {rooms.map((r) => {
           const l = roomNow(r.id)
-          return <Stat label={`🎥 ${r.name}`} value={l ? <span style="font-size:1rem">{l.teacher_name}</span> : <span class="muted" style="font-size:1rem">فاضية</span>} sub={l?.course_title} tone={l ? 'bad' : 'ok'} />
+          return <Stat icon="video" label={r.name} value={l ? <span style="font-size:1rem">{l.teacher_name}</span> : <span class="muted" style="font-size:1rem">فاضية</span>} sub={l?.course_title} tone={l ? 'bad' : 'ok'} />
         })}
-        <Stat label="📡 بث المنصة" value={<span class="num">{live.filter((l) => l.provider === 'jitsi').length}</span>} sub="حصة جارية" tone="teal" />
+        <Stat icon="radio-tower" label="بث المنصة" value={<span class="num">{live.filter((l) => l.provider === 'jitsi').length}</span>} sub="حصة جارية" tone="teal" />
       </div>
       <h2>مباشر الآن ({live.length})</h2>
       <div class="list" style="margin-bottom:1.5rem">
-        {live.length ? live.map((l) => <LessonItem l={l} now={now} user={user} />) : <div class="card"><Empty icon="📴" text="لا توجد حصص مباشرة حالياً." /></div>}
+        {live.length ? live.map((l) => <LessonItem l={l} now={now} user={user} />) : <div class="card"><Empty icon="video-off" text="لا توجد حصص مباشرة حالياً." /></div>}
       </div>
       {open.length > 0 && (
         <>
@@ -182,28 +185,27 @@ const roleNames: Record<Role, string> = { admin: 'مشرف', teacher: 'معلم�
 adminRoutes.get('/admin/users', async (c) => {
   const role = (['teacher', 'student', 'admin'].includes(c.req.query('role') ?? '') ? c.req.query('role') : 'student') as Role
   const q = str(c.req.query('q'), 40)
+  const status = ['active', 'inactive'].includes(c.req.query('status') ?? '') ? c.req.query('status')! : ''
+  const where = `u.role = ?1 AND (?2 = '' OR u.name LIKE '%' || ?2 || '%' OR u.phone LIKE '%' || ?2 || '%') AND (?3 = '' OR u.active = (?3 = 'active'))`
+  const total = (await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM users u WHERE ${where}`).bind(role, q, status).first<{ n: number }>())?.n ?? 0
+  const pg = pageInfo(readPage(c.req.url), total)
   const rows = (
     await c.env.DB.prepare(
-      `SELECT u.id, u.name, u.phone, u.active, u.guardian_name,
+      `SELECT u.id, u.name, u.phone, u.active, u.guardian_name, u.avatar_v,
         (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = u.id AND e.status='active') AS enrolls,
         (SELECT COUNT(*) FROM courses c WHERE c.teacher_id = u.id AND c.status='active') AS courses
-       FROM users u WHERE u.role = ?1 AND (?2 = '' OR u.name LIKE '%' || ?2 || '%' OR u.phone LIKE '%' || ?2 || '%')
-       ORDER BY u.active DESC, u.name LIMIT 500`,
+       FROM users u WHERE ${where}
+       ORDER BY u.active DESC, u.name LIMIT ?4 OFFSET ?5`,
     )
-      .bind(role, q)
-      .all<{ id: number; name: string; phone: string; active: number; guardian_name: string | null; enrolls: number; courses: number }>()
+      .bind(role, q, status, pg.size, pg.offset)
+      .all<{ id: number; name: string; phone: string; active: number; guardian_name: string | null; avatar_v: number | null; enrolls: number; courses: number }>()
   ).results
   const title = role === 'teacher' ? 'المعلمات' : role === 'admin' ? 'المشرفون' : 'الطلاب'
   return page(
     c,
     title,
     <>
-      <PageHead title={title} sub={`${rows.length} حساب`}>
-        <form method="get" class="flex">
-          <input type="hidden" name="role" value={role} />
-          <input name="q" value={q} placeholder="بحث بالاسم أو الجوال" style="width:220px" />
-        </form>
-      </PageHead>
+      <PageHead title={title} sub={`${total} حساب`} />
       <div class="tabs">
         {(['student', 'teacher', 'admin'] as Role[]).map((r) => (
           <a href={`/admin/users?role=${r}`} class={r === role ? 'active' : ''}>
@@ -211,6 +213,17 @@ adminRoutes.get('/admin/users', async (c) => {
           </a>
         ))}
       </div>
+      <Toolbar q={q} placeholder="بحث بالاسم أو الجوال" hidden={{ role }}>
+        <select name="status" aria-label="الحالة">
+          <option value="">كل الحالات</option>
+          <option value="active" selected={status === 'active'}>
+            نشط
+          </option>
+          <option value="inactive" selected={status === 'inactive'}>
+            موقوف
+          </option>
+        </select>
+      </Toolbar>
       <details class="drop">
         <summary>إضافة {roleNames[role]}</summary>
         <div>
@@ -256,8 +269,7 @@ adminRoutes.get('/admin/users', async (c) => {
             {rows.map((u) => (
               <tr>
                 <td>
-                  <b>{u.name}</b>
-                  {u.guardian_name && <div class="muted" style="font-size:.8rem">ولي الأمر: {u.guardian_name}</div>}
+                  <Person id={u.id} name={u.name} v={u.avatar_v} href={`/admin/users/${u.id}`} sub={u.guardian_name ? `ولي الأمر: ${u.guardian_name}` : undefined} />
                 </td>
                 <td class="num">{u.phone}</td>
                 <td>{role === 'teacher' ? u.courses : role === 'student' ? u.enrolls : ''}</td>
@@ -272,13 +284,14 @@ adminRoutes.get('/admin/users', async (c) => {
             {!rows.length && (
               <tr>
                 <td colspan={5}>
-                  <Empty icon="👤" text="لا يوجد مستخدمون." />
+                  <Empty icon="user" text={q || status ? 'لا توجد نتائج مطابقة.' : 'لا يوجد مستخدمون.'} />
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <Pager info={pg} url={c.req.url} />
     </>,
   )
 })
@@ -304,9 +317,9 @@ adminRoutes.post('/admin/users', async (c) => {
 
 adminRoutes.get('/admin/users/:id', async (c) => {
   const id = int(c.req.param('id'))
-  const u = await c.env.DB.prepare('SELECT id, role, name, phone, guardian_name, notes, active, created_at FROM users WHERE id = ?')
+  const u = await c.env.DB.prepare('SELECT id, role, name, phone, guardian_name, notes, active, created_at, avatar_v FROM users WHERE id = ?')
     .bind(id)
-    .first<{ id: number; role: Role; name: string; phone: string; guardian_name: string | null; notes: string | null; active: number; created_at: number }>()
+    .first<{ id: number; role: Role; name: string; phone: string; guardian_name: string | null; notes: string | null; active: number; created_at: number; avatar_v: number | null }>()
   if (!u) return notFound(c)
   let extra = <></>
   if (u.role === 'student') {
@@ -363,9 +376,9 @@ adminRoutes.get('/admin/users/:id', async (c) => {
             </table>
           </div>
         ) : (
-          <Empty icon="📚" text="غير مسجل في أي دورة." />
+          <Empty icon="book-open" text="غير مسجل في أي دورة." />
         )}
-        {insts.some((i) => i.state === 'overdue') && <div class="alert bad mt">⚠️ لديه أقساط متأخرة بقيمة {formatSAR(insts.filter((i) => i.state === 'overdue').reduce((s, i) => s + i.remaining, 0))}</div>}
+        {insts.some((i) => i.state === 'overdue') && <div class="alert bad mt"><Icon name="triangle-alert" /> لديه أقساط متأخرة بقيمة {formatSAR(insts.filter((i) => i.state === 'overdue').reduce((s, i) => s + i.remaining, 0))}</div>}
       </div>
     )
   } else if (u.role === 'teacher') {
@@ -407,7 +420,7 @@ adminRoutes.get('/admin/users/:id', async (c) => {
             </table>
           </div>
         ) : (
-          <Empty icon="📚" text="لا توجد دورات." />
+          <Empty icon="book-open" text="لا توجد دورات." />
         )}
       </div>
     )
@@ -416,11 +429,22 @@ adminRoutes.get('/admin/users/:id', async (c) => {
     c,
     u.name,
     <>
-      <PageHead title={u.name} sub={`${roleNames[u.role]} • ${u.phone}`}>
-        <a class="btn btn-soft" href={`/messages?with=${u.id}`}>
-          💬 مراسلة
-        </a>
-      </PageHead>
+      <div class="user-hero card">
+        <AvatarEditor id={u.id} name={u.name} v={u.avatar_v} action={`/admin/users/${u.id}/avatar`} />
+        <div class="grow">
+          <h1 class="mb-0">{u.name}</h1>
+          <p class="muted" style="margin:.25rem 0 0;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+            <span class="badge">{roleNames[u.role]}</span>
+            {u.active ? <span class="badge ok">نشط</span> : <span class="badge gray">موقوف</span>}
+            <span class="num">{u.phone}</span>
+          </p>
+        </div>
+        <div class="actions">
+          <a class="btn btn-soft" href={`/messages?with=${u.id}`}>
+            <Icon name="message-circle" /> مراسلة
+          </a>
+        </div>
+      </div>
       <div class="grid grid-2">
         <div class="card">
           <h2>البيانات</h2>
@@ -464,6 +488,7 @@ adminRoutes.get('/admin/users/:id', async (c) => {
       </div>
       {extra}
     </>,
+    { scripts: ['/static/avatar.js'] },
   )
 })
 
@@ -653,7 +678,7 @@ adminRoutes.get('/admin/courses', async (c) => {
             {!fins.length && (
               <tr>
                 <td colspan={7}>
-                  <Empty icon="📚" text="لا توجد دورات بعد." />
+                  <Empty icon="book-open" text="لا توجد دورات بعد." />
                 </td>
               </tr>
             )}
@@ -708,7 +733,7 @@ adminRoutes.get('/admin/courses/:id', async (c) => {
     <>
       <PageHead title={co.title} sub={`${fin.teacher_name ?? 'بدون معلمة'} • ${shareLabel(co.teacher_share_type, co.teacher_share_value)} • السعر ${formatSAR(co.price)}`}>
         <a class="btn btn-soft" href={`/admin/finance/course/${id}`}>
-          📊 تقرير الربح والخسارة
+          <Icon name="chart-column" /> تقرير الربح والخسارة
         </a>
       </PageHead>
       <div class="stats">
@@ -725,11 +750,11 @@ adminRoutes.get('/admin/courses/:id', async (c) => {
             <span style={`width:${bar(fin.expenses)}%;background:#e5484d`}></span>
             <span style={`width:${bar(Math.max(0, fin.net))}%;background:#12a150`}></span>
           </div>
-          <div class="flex mt" style="font-size:.84rem">
-            <span>🟪 المعلمة</span>
-            <span>🟨 الجهات</span>
-            <span>🟥 المصروفات</span>
-            <span>🟩 صافي الربح</span>
+          <div class="legend">
+            <span><i style="background:#5b3df5"></i>المعلمة</span>
+            <span><i style="background:#ffb020"></i>الجهات</span>
+            <span><i style="background:#e5484d"></i>المصروفات</span>
+            <span><i style="background:#12a150"></i>صافي الربح</span>
           </div>
         </div>
       )}
@@ -829,7 +854,7 @@ adminRoutes.get('/admin/courses/:id', async (c) => {
               {!enrolls.length && (
                 <tr>
                   <td colspan={6}>
-                    <Empty icon="🎒" text="لا يوجد طلاب بعد." />
+                    <Empty icon="backpack" text="لا يوجد طلاب بعد." />
                   </td>
                 </tr>
               )}
@@ -851,19 +876,21 @@ adminRoutes.get('/admin/courses/:id', async (c) => {
         <div class="card">
           <div class="card-head">
             <h2>الواجبات</h2>
-            <a href="/assignments-new" class="hide-sm"></a>
+            <a href="/admin/assignments">
+              كل الواجبات <Icon name="chevron-left" />
+            </a>
           </div>
           {asgs.length ? (
             <div class="list">
               {asgs.map((a) => (
                 <a class="item" href={`/assignments/${a.id}`} style="color:inherit">
-                  📝 <div class="grow">{a.title}</div>
+                  <Icon name="notebook-pen" /> <div class="grow">{a.title}</div>
                   {a.due_at && <small class="muted">{fmtDateTime(a.due_at)}</small>}
                 </a>
               ))}
             </div>
           ) : (
-            <Empty icon="📝" text="لا توجد واجبات." />
+            <Empty icon="notebook-pen" text="لا توجد واجبات." />
           )}
         </div>
       </div>
@@ -923,14 +950,14 @@ adminRoutes.get('/admin/rooms', async (c) => {
     <>
       <PageHead title="قاعات الزوم" sub="القاعات المدفوعة اللي عندكم. المنصة توزع الحصص عليها تلقائياً بدون تعارض، وعند امتلائها تفتح الحصة على بث المنصة." />
       <div class="alert info">
-        💡 لكل قاعة: استخدموا <b>رابط الاجتماع الشخصي (PMI)</b> أو اجتماعاً متكرراً بدون موعد لكل مستخدم مرخص في الزوم. الرابط لا يظهر للطلاب إلا وقت حصتهم فقط.
+        <Icon name="lightbulb" /> لكل قاعة: استخدموا <b>رابط الاجتماع الشخصي (PMI)</b> أو اجتماعاً متكرراً بدون موعد لكل مستخدم مرخص في الزوم. الرابط لا يظهر للطلاب إلا وقت حصتهم فقط.
       </div>
       <div class="grid grid-2">
         {rooms.map((r) => (
           <div class="card">
             <form method="post" action={`/admin/rooms/${r.id}`}>
               <div class="flex between">
-                <h3 class="mb-0">🎥 {r.name}</h3>
+                <h3 class="mb-0"><Icon name="video" /> {r.name}</h3>
                 {r.active ? <span class="badge ok">مفعلة</span> : <span class="badge gray">معطلة</span>}
               </div>
               <p class="muted" style="font-size:.84rem">{r.upcoming} حصة قادمة محجوزة عليها</p>
@@ -1075,7 +1102,7 @@ adminRoutes.get('/admin/partners', async (c) => {
                 <td>{p.students}</td>
                 <td>
                   <form method="post" action={`/admin/partners/${p.id}`} class="flex">
-                    <input name="commission" value={String(p.commission_bps / 100)} dir="ltr" style="width:80px" />
+                    <input name="commission" value={String(p.commission_bps / 100)} dir="ltr" style="width:80px" aria-label={`نسبة عمولة ${p.name} (%)`} />
                     <input type="hidden" name="name" value={p.name} />
                     <input type="hidden" name="contact_phone" value={p.contact_phone ?? ''} />
                     <label class="flex" style="margin:0;font-weight:500">
@@ -1118,8 +1145,13 @@ adminRoutes.post('/admin/partners/:id', async (c) => {
 const leadStatus = { new: ['جديد', 'bad'], contacted: ['تم التواصل', 'warn'], enrolled: ['سُجّل', 'ok'], closed: ['مغلق', 'gray'] } as const
 
 adminRoutes.get('/admin/leads', async (c) => {
+  const q = str(c.req.query('q'), 40)
+  const st = Object.keys(leadStatus).includes(c.req.query('status') ?? '') ? c.req.query('status')! : ''
+  const where = `(?1 = '' OR name LIKE '%' || ?1 || '%' OR phone LIKE '%' || ?1 || '%') AND (?2 = '' OR status = ?2)`
+  const total = (await c.env.DB.prepare(`SELECT COUNT(*) AS n FROM leads WHERE ${where}`).bind(q, st).first<{ n: number }>())?.n ?? 0
+  const pg = pageInfo(readPage(c.req.url), total)
   const rows = (
-    await c.env.DB.prepare(`SELECT * FROM leads ORDER BY status = 'new' DESC, id DESC LIMIT 300`).all<{
+    await c.env.DB.prepare(`SELECT * FROM leads WHERE ${where} ORDER BY status = 'new' DESC, id DESC LIMIT ?3 OFFSET ?4`).bind(q, st, pg.size, pg.offset).all<{
       id: number
       name: string
       phone: string
@@ -1134,6 +1166,16 @@ adminRoutes.get('/admin/leads', async (c) => {
     'طلبات التسجيل',
     <>
       <PageHead title="طلبات التسجيل" sub="طلبات الحصة التجريبية من الموقع التعريفي" />
+      <Toolbar q={q} placeholder="بحث بالاسم أو الجوال">
+        <select name="status" aria-label="الحالة">
+          <option value="">كل الحالات</option>
+          {Object.entries(leadStatus).map(([k, [label]]) => (
+            <option value={k} selected={k === st}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </Toolbar>
       <div class="table-wrap">
         <table>
           <thead>
@@ -1162,7 +1204,7 @@ adminRoutes.get('/admin/leads', async (c) => {
                 <td>{fmtDateTime(l.created_at)}</td>
                 <td>
                   <form method="post" action={`/admin/leads/${l.id}`} class="flex">
-                    <select name="status" style="width:auto;min-height:34px;padding:.2rem .5rem" onchange="this.form.submit()">
+                    <select name="status" style="width:auto;min-height:34px;padding:.2rem .5rem" onchange="this.form.submit()" aria-label={`حالة طلب ${l.name}`}>
                       {Object.entries(leadStatus).map(([k, [label]]) => (
                         <option value={k} selected={k === l.status}>
                           {label}
@@ -1176,13 +1218,14 @@ adminRoutes.get('/admin/leads', async (c) => {
             {!rows.length && (
               <tr>
                 <td colspan={5}>
-                  <Empty icon="📥" text="لا توجد طلبات بعد." />
+                  <Empty icon="inbox" text="لا توجد طلبات بعد." />
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <Pager info={pg} url={c.req.url} />
     </>,
   )
 })

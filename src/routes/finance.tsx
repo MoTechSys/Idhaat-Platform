@@ -16,7 +16,9 @@ import { formatPercent, formatSAR, parseSAR } from '../lib/money'
 import { notFound, page } from '../lib/render'
 import { fmtDate, isDate, todayRiyadh } from '../lib/time'
 import type { AppEnv } from '../lib/types'
-import { Empty, Money, PageHead, Stat } from '../views/layout'
+import { Empty, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
+import { paginate } from '../lib/paging'
+import { Icon } from '../views/icons'
 
 export const financeRoutes = new Hono<AppEnv>()
 financeRoutes.use('/admin/finance/*', requireRole('admin'))
@@ -57,20 +59,24 @@ financeRoutes.get('/admin/finance', async (c) => {
     { collected: 0, outstanding: 0, teacher: 0, partner: 0, net: 0 },
   )
   const maxM = Math.max(1, ...monthly.map((m) => m.v))
+  // جدول الربح والخسارة: بحث + ترتيب (الأكثر ربحاً أولاً، الخاسر مميز) + ترقيم 10 صفوف؛ الإجمالي دائماً للكل
+  const cq = str(c.req.query('cq'), 40)
+  const sorted = [...fins].filter((f) => !cq || f.title.includes(cq) || (f.teacher_name ?? '').includes(cq)).sort((a, b) => b.net - a.net)
+  const { items: finPage, info: finInfo } = paginate(sorted, c.req.url, 10)
   return page(
     c,
     'لوحة المالية',
     <>
       <PageHead title="لوحة المالية" sub="كل الأرقام محسوبة تلقائياً من التحويلات والمصروفات والمستحقات">
         <a class="btn btn-ghost" href={`/admin/finance/export/payments.csv?from=${from}&to=${to}`}>
-          ⬇ تصدير التحويلات CSV
+          <Icon name="download" /> تصدير التحويلات CSV
         </a>
       </PageHead>
       <form class="card flex" method="get" style="padding:.8rem 1rem">
         <b>الفترة:</b>
-        <input type="date" name="from" value={from} style="width:auto" />
+        <input type="date" name="from" value={from} style="width:auto" aria-label="من تاريخ" />
         <span>إلى</span>
-        <input type="date" name="to" value={to} style="width:auto" />
+        <input type="date" name="to" value={to} style="width:auto" aria-label="إلى تاريخ" />
         <button class="btn btn-soft btn-sm">عرض</button>
       </form>
       <div class="stats">
@@ -99,7 +105,7 @@ financeRoutes.get('/admin/finance', async (c) => {
               ))}
             </div>
           ) : (
-            <Empty icon="📈" text="لا توجد تحويلات بعد." />
+            <Empty icon="trending-up" text="لا توجد تحويلات بعد." />
           )}
         </div>
         <div class="card">
@@ -127,7 +133,7 @@ financeRoutes.get('/admin/finance', async (c) => {
                 ))}
             </div>
           ) : (
-            <Empty icon="✅" text="لا توجد متأخرات." />
+            <Empty icon="circle-check" text="لا توجد متأخرات." />
           )}
         </div>
       </div>
@@ -135,9 +141,20 @@ financeRoutes.get('/admin/finance', async (c) => {
         <div class="card-head">
           <h2>الربح والخسارة لكل دورة</h2>
           <a class="btn btn-ghost btn-sm" href="/admin/finance/export/courses.csv">
-            ⬇ CSV
+            <Icon name="download" /> CSV
           </a>
         </div>
+        <form method="get" class="toolbar" role="search" style="box-shadow:none">
+          <input type="hidden" name="from" value={from} />
+          <input type="hidden" name="to" value={to} />
+          <div class="input-icon grow">
+            <Icon name="search" />
+            <input type="search" name="cq" value={cq} placeholder="بحث بالدورة أو المعلمة" aria-label="بحث في الدورات" />
+          </div>
+          <button class="btn btn-soft">
+            <Icon name="filter" /> تطبيق
+          </button>
+        </form>
         <div class="table-wrap">
           <table>
             <thead>
@@ -153,7 +170,7 @@ financeRoutes.get('/admin/finance', async (c) => {
               </tr>
             </thead>
             <tbody>
-              {fins.map((f) => (
+              {finPage.map((f) => (
                 <tr>
                   <td>
                     <a href={`/admin/finance/course/${f.id}`}>
@@ -210,6 +227,7 @@ financeRoutes.get('/admin/finance', async (c) => {
             </tfoot>
           </table>
         </div>
+        <Pager info={finInfo} url={c.req.url} />
       </div>
     </>,
   )
@@ -227,6 +245,9 @@ financeRoutes.get('/admin/finance/installments', async (c) => {
         : filter === 'all'
           ? all
           : all.filter((i) => ['overdue', 'due_soon', 'partial'].includes(i.state))
+  const q = str(c.req.query('q'), 40)
+  const filtered = q ? list.filter((i) => i.student_name.includes(q) || i.student_phone.includes(q) || i.course_title.includes(q)) : list
+  const { items, info } = paginate(filtered, c.req.url)
   const sumOf = (s: string[]) => all.filter((i) => s.includes(i.state)).reduce((a, i) => a + i.remaining, 0)
   return page(
     c,
@@ -251,6 +272,7 @@ financeRoutes.get('/admin/finance/installments', async (c) => {
           </a>
         ))}
       </div>
+      <Toolbar q={q} placeholder="بحث بالطالب أو الجوال أو الدورة" hidden={{ filter }} />
       <div class="table-wrap">
         <table>
           <thead>
@@ -265,15 +287,10 @@ financeRoutes.get('/admin/finance/installments', async (c) => {
             </tr>
           </thead>
           <tbody>
-            {list.map((i) => (
+            {items.map((i) => (
               <tr>
                 <td>
-                  <a href={`/admin/users/${i.student_id}`}>
-                    <b>{i.student_name}</b>
-                  </a>
-                  <div class="muted num" style="font-size:.78rem">
-                    {i.student_phone}
-                  </div>
+                  <Person id={i.student_id} name={i.student_name} v={i.student_avatar_v} href={`/admin/users/${i.student_id}`} sub={<span class="num">{i.student_phone}</span>} />
                 </td>
                 <td>{i.course_title}</td>
                 <td>{fmtDate(i.due_date)}</td>
@@ -293,8 +310,8 @@ financeRoutes.get('/admin/finance/installments', async (c) => {
                     </a>
                     {i.state !== 'paid' && (
                       <form method="post" action={`/admin/installments/${i.id}/remind`}>
-                        <button class="btn btn-ghost btn-sm" title="إرسال تذكير داخل المنصة">
-                          🔔
+                        <button class="btn btn-ghost btn-sm" title="إرسال تذكير داخل المنصة" aria-label="إرسال تذكير">
+                          <Icon name="bell-ring" />
                         </button>
                       </form>
                     )}
@@ -302,16 +319,17 @@ financeRoutes.get('/admin/finance/installments', async (c) => {
                 </td>
               </tr>
             ))}
-            {!list.length && (
+            {!items.length && (
               <tr>
                 <td colspan={7}>
-                  <Empty icon="✅" text="لا شيء هنا." />
+                  <Empty icon="circle-check" text={q ? 'لا توجد نتائج مطابقة.' : 'لا شيء هنا.'} />
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <Pager info={info} url={c.req.url} />
     </>,
   )
 })
@@ -350,28 +368,28 @@ financeRoutes.get('/admin/enrollments/:id', async (c) => {
     c,
     `${e.student_name} — ${e.course_title}`,
     <>
-      <PageHead title={e.student_name} sub={`📚 ${e.course_title}${e.partner_name ? ` • 🏢 ${e.partner_name}` : ''} • 📱 ${e.phone}`}>
+      <PageHead title={e.student_name} sub={`${e.course_title}${e.partner_name ? ` • ${e.partner_name}` : ''} • ${e.phone}`}>
         <a class="btn btn-ghost" href={`/admin/courses/${e.course_id}`}>
           الدورة
         </a>
         <a class="btn btn-soft" href={`/messages?with=${e.student_id}`}>
-          💬 مراسلة
+          <Icon name="message-circle" /> مراسلة
         </a>
       </PageHead>
       <div class="stats">
         <Stat label="السعر المتفق" value={<Money v={e.agreed_price} />} />
         <Stat label="المدفوع" value={<Money v={paid} />} tone="ok" />
         <Stat label="المتبقي" value={<Money v={Math.max(0, e.agreed_price - paid)} />} tone={e.agreed_price - paid > 0 ? 'warn' : 'ok'} />
-        <Stat label="القسط القادم" value={nextDue ? <Money v={nextDue.remaining} /> : '—'} sub={nextDue ? fmtDate(nextDue.due_date) : 'مكتمل ✅'} tone="teal" />
+        <Stat label="القسط القادم" value={nextDue ? <Money v={nextDue.remaining} /> : '—'} sub={nextDue ? fmtDate(nextDue.due_date) : 'مكتمل'} tone="teal" />
       </div>
       {scheduled !== e.agreed_price && (
         <div class="alert warn">
-          ⚠️ مجموع الأقساط ({formatSAR(scheduled)}) لا يساوي السعر المتفق ({formatSAR(e.agreed_price)}). عدّل الأقساط أو السعر.
+          <Icon name="triangle-alert" /> مجموع الأقساط ({formatSAR(scheduled)}) لا يساوي السعر المتفق ({formatSAR(e.agreed_price)}). عدّل الأقساط أو السعر.
         </div>
       )}
       <div class="grid grid-2">
         <div class="card">
-          <h2>💳 تسجيل تحويل / دفعة</h2>
+          <h2><Icon name="credit-card" /> تسجيل تحويل / دفعة</h2>
           <form method="post" action={`/admin/enrollments/${id}/payments`}>
             <div class="form-grid">
               <div class="field">
@@ -403,7 +421,7 @@ financeRoutes.get('/admin/enrollments/:id', async (c) => {
           </form>
         </div>
         <div class="card">
-          <h2>🗓️ جدول الأقساط</h2>
+          <h2><Icon name="calendar-days" /> جدول الأقساط</h2>
           <div class="table-wrap">
             <table>
               <thead>
@@ -431,7 +449,7 @@ financeRoutes.get('/admin/enrollments/:id', async (c) => {
                     <td>
                       <form method="post" action={`/admin/installments/${i.id}/delete`} data-confirm="حذف هذا القسط من الجدول؟">
                         <button class="btn btn-ghost btn-sm" title="حذف">
-                          ✕
+                          <Icon name="x" />
                         </button>
                       </form>
                     </td>
@@ -449,7 +467,7 @@ financeRoutes.get('/admin/enrollments/:id', async (c) => {
           </div>
           <form method="post" action={`/admin/enrollments/${id}/installments`} class="flex mt">
             <input name="amount" dir="ltr" inputmode="decimal" placeholder="المبلغ" required style="width:120px" />
-            <input type="date" name="due_date" required style="width:auto" />
+            <input type="date" name="due_date" required style="width:auto" aria-label="تاريخ الاستحقاق" />
             <button class="btn btn-soft btn-sm">+ إضافة قسط</button>
           </form>
         </div>
@@ -482,7 +500,7 @@ financeRoutes.get('/admin/enrollments/:id', async (c) => {
                   <td>{p.note ?? ''}</td>
                   <td>
                     <form method="post" action={`/admin/payments/${p.id}/delete`} data-confirm="حذف هذه الدفعة؟ سيُعاد حساب الأقساط.">
-                      <button class="btn btn-ghost btn-sm">✕</button>
+                      <button class="btn btn-ghost btn-sm" aria-label="حذف" title="حذف"><Icon name="trash-2" /></button>
                     </form>
                   </td>
                 </tr>
@@ -490,7 +508,7 @@ financeRoutes.get('/admin/enrollments/:id', async (c) => {
               {!pays.length && (
                 <tr>
                   <td colspan={6}>
-                    <Empty icon="💳" text="لا توجد تحويلات مسجلة." />
+                    <Empty icon="credit-card" text="لا توجد تحويلات مسجلة." />
                   </td>
                 </tr>
               )}
@@ -502,7 +520,7 @@ financeRoutes.get('/admin/enrollments/:id', async (c) => {
         <summary>تعديل السعر المتفق / الانسحاب</summary>
         <div>
           <form method="post" action={`/admin/enrollments/${id}`} class="flex">
-            <input name="agreed_price" dir="ltr" value={String(e.agreed_price / 100)} style="width:140px" />
+            <input name="agreed_price" dir="ltr" inputmode="decimal" value={String(e.agreed_price / 100)} style="width:140px" aria-label="السعر المتفق (ريال)" />
             <label class="flex" style="margin:0;font-weight:500">
               <input type="checkbox" name="withdrawn" value="1" checked={e.status !== 'active'} /> منسحب من الدورة
             </label>
@@ -532,7 +550,7 @@ financeRoutes.post('/admin/enrollments/:id/payments', async (c) => {
   await c.env.DB.prepare('INSERT INTO payments (enrollment_id, amount, paid_on, method, reference, note, recorded_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
     .bind(id, amount, f.paid_on, method, ref, str(f.note, 300) || null, c.get('user')!.id)
     .run()
-  return back(c, 'ok', `تم تسجيل دفعة ${formatSAR(amount)} ✅`)
+  return back(c, 'ok', `تم تسجيل دفعة ${formatSAR(amount)}`)
 })
 
 financeRoutes.post('/admin/enrollments/:id/installments', async (c) => {
@@ -597,9 +615,9 @@ financeRoutes.get('/admin/finance/course/:id', async (c) => {
     c,
     `تقرير: ${f.title}`,
     <>
-      <PageHead title={`تقرير الربح والخسارة`} sub={`📚 ${f.title} • 👩‍🏫 ${f.teacher_name ?? '—'} • ${f.students} طالب • حتى ${fmtDate(todayRiyadh())}`}>
+      <PageHead title={`تقرير الربح والخسارة`} sub={`${f.title} • ${f.teacher_name ?? '—'} • ${f.students} طالب • حتى ${fmtDate(todayRiyadh())}`}>
         <button class="btn btn-ghost no-print" onclick="print()">
-          🖨 طباعة / PDF
+          <Icon name="printer" /> طباعة / PDF
         </button>
         <a class="btn btn-soft no-print" href={`/admin/courses/${id}`}>
           الدورة
@@ -712,7 +730,7 @@ financeRoutes.get('/admin/finance/course/:id', async (c) => {
             <tbody>
               {(expenses.results as { category: string; amount: number; spent_on: string; note: string | null }[]).map((x) => (
                 <tr>
-                  <td>🧾 {x.category}</td>
+                  <td><Icon name="receipt" /> {x.category}</td>
                   <td>{fmtDate(x.spent_on)}</td>
                   <td class="money">
                     <Money v={-x.amount} color />
@@ -722,7 +740,7 @@ financeRoutes.get('/admin/finance/course/:id', async (c) => {
               {(payouts.results as { payee_type: string; payee: string; amount: number; paid_on: string }[]).map((x) => (
                 <tr>
                   <td>
-                    {x.payee_type === 'teacher' ? '👩‍🏫' : '🏢'} صرف لـ {x.payee}
+                    <Icon name={x.payee_type === 'teacher' ? 'presentation' : 'building-2'} /> صرف لـ {x.payee}
                   </td>
                   <td>{fmtDate(x.paid_on)}</td>
                   <td class="money">
@@ -761,15 +779,16 @@ financeRoutes.get('/admin/finance/payouts', async (c) => {
     await c.env.DB.prepare(
       `SELECT o.*, c.title AS course_title, CASE o.payee_type WHEN 'teacher' THEN u.name ELSE p.name END AS payee
        FROM payouts o JOIN courses c ON c.id = o.course_id LEFT JOIN users u ON o.payee_type='teacher' AND u.id=o.payee_id LEFT JOIN partners p ON o.payee_type='partner' AND p.id=o.payee_id
-       ORDER BY o.paid_on DESC, o.id DESC LIMIT 30`,
+       ORDER BY o.paid_on DESC, o.id DESC LIMIT 1000`,
     ).all<{ id: number; payee_type: string; payee: string; course_title: string; amount: number; paid_on: string; note: string | null }>()
   ).results
+  const { items: recentPage, info: recentInfo } = paginate(recent, c.req.url, 10)
   const PayForm = ({ type, payee, course, balance }: { type: string; payee: number; course: number; balance: number }) => (
     <form method="post" action="/admin/finance/payouts" class="flex" style="flex-wrap:nowrap">
       <input type="hidden" name="payee_type" value={type} />
       <input type="hidden" name="payee_id" value={payee} />
       <input type="hidden" name="course_id" value={course} />
-      <input name="amount" dir="ltr" inputmode="decimal" value={balance > 0 ? String(balance / 100) : ''} style="width:100px;min-height:34px" required />
+      <input name="amount" dir="ltr" inputmode="decimal" value={balance > 0 ? String(balance / 100) : ''} style="width:100px;min-height:34px" required aria-label="مبلغ الصرف (ريال)" />
       <button class="btn btn-ok btn-sm">صرف</button>
     </form>
   )
@@ -779,7 +798,7 @@ financeRoutes.get('/admin/finance/payouts', async (c) => {
     <>
       <PageHead title="مستحقات المعلمات والجهات" sub="المستحق يُحسب تلقائياً من المحصّل فعلياً حسب اتفاق كل دورة" />
       <div class="card">
-        <h2>👩‍🏫 المعلمات</h2>
+        <h2><Icon name="presentation" /> المعلمات</h2>
         <div class="table-wrap">
           <table>
             <thead>
@@ -827,7 +846,7 @@ financeRoutes.get('/admin/finance/payouts', async (c) => {
         </div>
       </div>
       <div class="card">
-        <h2>🏢 الجهات</h2>
+        <h2><Icon name="building-2" /> الجهات</h2>
         <div class="table-wrap">
           <table>
             <thead>
@@ -888,11 +907,11 @@ financeRoutes.get('/admin/finance/payouts', async (c) => {
               </tr>
             </thead>
             <tbody>
-              {recent.map((r) => (
+              {recentPage.map((r) => (
                 <tr>
                   <td>{fmtDate(r.paid_on)}</td>
                   <td>
-                    {r.payee_type === 'teacher' ? '👩‍🏫' : '🏢'} {r.payee}
+                    <Icon name={r.payee_type === 'teacher' ? 'presentation' : 'building-2'} /> {r.payee}
                   </td>
                   <td>{r.course_title}</td>
                   <td class="money">
@@ -900,14 +919,22 @@ financeRoutes.get('/admin/finance/payouts', async (c) => {
                   </td>
                   <td>
                     <form method="post" action={`/admin/finance/payouts/${r.id}/delete`} data-confirm="حذف عملية الصرف؟">
-                      <button class="btn btn-ghost btn-sm">✕</button>
+                      <button class="btn btn-ghost btn-sm" aria-label="حذف" title="حذف"><Icon name="trash-2" /></button>
                     </form>
                   </td>
                 </tr>
               ))}
+              {!recentPage.length && (
+                <tr>
+                  <td colspan={5}>
+                    <Empty icon="hand-coins" text="لا توجد عمليات صرف بعد." />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+        <Pager info={recentInfo} url={c.req.url} />
       </div>
     </>,
   )
@@ -942,6 +969,7 @@ financeRoutes.get('/admin/finance/expenses', async (c) => {
   ])
   const list = rows.results as { id: number; category: string; amount: number; spent_on: string; note: string | null; course_title: string | null }[]
   const total = list.reduce((s, x) => s + x.amount, 0)
+  const { items, info } = paginate(list, c.req.url)
   return page(
     c,
     'المصروفات',
@@ -985,9 +1013,9 @@ financeRoutes.get('/admin/finance/expenses', async (c) => {
         </form>
       </div>
       <form class="flex" method="get" style="margin-bottom:1rem">
-        <input type="date" name="from" value={from} style="width:auto" />
+        <input type="date" name="from" value={from} style="width:auto" aria-label="من تاريخ" />
         <span>إلى</span>
-        <input type="date" name="to" value={to} style="width:auto" />
+        <input type="date" name="to" value={to} style="width:auto" aria-label="إلى تاريخ" />
         <button class="btn btn-soft btn-sm">عرض</button>
       </form>
       <div class="table-wrap">
@@ -1003,7 +1031,7 @@ financeRoutes.get('/admin/finance/expenses', async (c) => {
             </tr>
           </thead>
           <tbody>
-            {list.map((x) => (
+            {items.map((x) => (
               <tr>
                 <td>{fmtDate(x.spent_on)}</td>
                 <td>{x.category}</td>
@@ -1014,7 +1042,7 @@ financeRoutes.get('/admin/finance/expenses', async (c) => {
                 </td>
                 <td>
                   <form method="post" action={`/admin/finance/expenses/${x.id}/delete`} data-confirm="حذف المصروف؟">
-                    <button class="btn btn-ghost btn-sm">✕</button>
+                    <button class="btn btn-ghost btn-sm" aria-label="حذف" title="حذف"><Icon name="trash-2" /></button>
                   </form>
                 </td>
               </tr>
@@ -1022,13 +1050,14 @@ financeRoutes.get('/admin/finance/expenses', async (c) => {
             {!list.length && (
               <tr>
                 <td colspan={6}>
-                  <Empty icon="🧾" text="لا توجد مصروفات في هذه الفترة." />
+                  <Empty icon="receipt" text="لا توجد مصروفات في هذه الفترة." />
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <Pager info={info} url={c.req.url} />
     </>,
   )
 })

@@ -8,7 +8,9 @@ import { lessonsFor, recordingsFor } from '../lib/queries'
 import { page } from '../lib/render'
 import { fmtDate, fmtDateTime, fmtRemaining, nowSec } from '../lib/time'
 import type { AppEnv } from '../lib/types'
-import { Empty, Money, PageHead, Stat } from '../views/layout'
+import { Empty, Money, PageHead, Pager, Stat } from '../views/layout'
+import { paginate } from '../lib/paging'
+import { Icon } from '../views/icons'
 import { assignmentsPage } from './assignments'
 import { LessonItem } from './lessons'
 import { recordingsPage } from './recordings'
@@ -35,7 +37,7 @@ portalRoutes.get('/teacher', requireRole('teacher'), async (c) => {
     c,
     'الرئيسية',
     <>
-      <PageHead title={`أهلاً أ. ${user.name.split(' ')[0]} 🌷`} sub={fmtDateTime(now)}>
+      <PageHead title={`أهلاً أ. ${user.name.split(' ')[0]}`} sub={fmtDateTime(now)}>
         <a class="btn" href="/lessons">
           + جدولة حصة
         </a>
@@ -58,7 +60,7 @@ portalRoutes.get('/teacher', requireRole('teacher'), async (c) => {
             ))}
           </div>
         ) : (
-          <Empty icon="🗓️" text="لا توجد حصص مجدولة هذا الأسبوع.">
+          <Empty icon="calendar-days" text="لا توجد حصص مجدولة هذا الأسبوع.">
             <a class="btn btn-soft" href="/lessons">
               جدولة حصة
             </a>
@@ -66,7 +68,7 @@ portalRoutes.get('/teacher', requireRole('teacher'), async (c) => {
         )}
       </div>
       <div class="alert info">
-        💡 <b>طريقة التسجيل:</b> في غرفة الحصة اضغطي «ابدأ التسجيل» واختاري «هذا التبويب» مع تفعيل «مشاركة صوت التبويب». التسجيل يُرفع تلقائياً أثناء الحصة ويظهر للطلاب 48 ساعة.
+        <Icon name="lightbulb" /> <b>طريقة التسجيل:</b> في غرفة الحصة اضغطي «ابدأ التسجيل» واختاري «هذا التبويب» مع تفعيل «مشاركة صوت التبويب». التسجيل يُرفع تلقائياً أثناء الحصة ويظهر للطلاب 48 ساعة.
       </div>
     </>,
   )
@@ -152,7 +154,7 @@ portalRoutes.get('/teacher/earnings', requireRole('teacher'), async (c) => {
             </table>
           </div>
         ) : (
-          <Empty icon="💵" text="لا توجد عمليات صرف بعد." />
+          <Empty icon="banknote" text="لا توجد عمليات صرف بعد." />
         )}
       </div>
     </>,
@@ -183,15 +185,15 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
     c,
     'الرئيسية',
     <>
-      <PageHead title={`أهلاً ${user.name.split(' ')[0]} 👋`} sub="جاهز لحصة اليوم؟" />
+      <PageHead title={`أهلاً ${user.name.split(' ')[0]}`} sub="جاهز لحصة اليوم؟" />
       {overdue.length > 0 && (
         <div class="alert warn">
-          💳 عليك قسط متأخر بقيمة <b>{formatSAR(overdue.reduce((s, i) => s + i.remaining, 0))}</b>. <a href="/student/payments">التفاصيل</a>
+          <Icon name="credit-card" /> عليك قسط متأخر بقيمة <b>{formatSAR(overdue.reduce((s, i) => s + i.remaining, 0))}</b>. <a href="/student/payments">التفاصيل</a>
         </div>
       )}
       {live.length > 0 && (
         <div class="card" style="border-color:#f7b4b6;background:linear-gradient(135deg,#fff,#fff4f4)">
-          <h2>🔴 حصتك الآن</h2>
+          <h2><Icon name="radio" /> حصتك الآن</h2>
           <div class="list">
             {live.map((l) => (
               <LessonItem l={l} now={now} user={user} />
@@ -202,7 +204,7 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
       <div class="grid grid-2">
         <div class="card">
           <div class="card-head">
-            <h2>🗓️ حصصي هذا الأسبوع</h2>
+            <h2><Icon name="calendar-days" /> حصصي هذا الأسبوع</h2>
           </div>
           {active.filter((l) => !live.includes(l)).length ? (
             <div class="list">
@@ -214,13 +216,13 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
                 ))}
             </div>
           ) : (
-            <Empty icon="🗓️" text="لا توجد حصص قادمة هذا الأسبوع." />
+            <Empty icon="calendar-days" text="لا توجد حصص قادمة هذا الأسبوع." />
           )}
         </div>
         <div>
           <div class="card">
             <div class="card-head">
-              <h2>📝 واجبات مطلوبة</h2>
+              <h2><Icon name="notebook-pen" /> واجبات مطلوبة</h2>
               <a href="/student/assignments">الكل</a>
             </div>
             {asg.results.length ? (
@@ -239,12 +241,12 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
                 ))}
               </div>
             ) : (
-              <Empty icon="🎉" text="ما عليك واجبات حالياً." />
+              <Empty icon="party-popper" text="ما عليك واجبات حالياً." />
             )}
           </div>
           <div class="card">
             <div class="card-head">
-              <h2>🎬 فاتتك حصة؟</h2>
+              <h2><Icon name="clapperboard" /> فاتتك حصة؟</h2>
               <a href="/student/recordings">الكل</a>
             </div>
             {recs.length ? (
@@ -253,14 +255,14 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
                   <a class="item" href={`/recordings/${r.id}`} style="color:inherit">
                     <div class="grow">
                       <div class="title">{r.lesson_title}</div>
-                      <div class="meta">⏳ متاح {fmtRemaining(r.expires_at - now)}</div>
+                      <div class="meta"><Icon name="hourglass" /> متاح {fmtRemaining(r.expires_at - now)}</div>
                     </div>
                     <span class="btn btn-soft btn-sm">▶</span>
                   </a>
                 ))}
               </div>
             ) : (
-              <Empty icon="🎬" text="لا توجد تسجيلات متاحة." />
+              <Empty icon="clapperboard" text="لا توجد تسجيلات متاحة." />
             )}
           </div>
         </div>
@@ -285,6 +287,7 @@ portalRoutes.get('/student/payments', requireRole('student'), async (c) => {
       .all<{ amount: number; paid_on: string; title: string }>()
   ).results
   const remaining = insts.reduce((s, i) => s + i.remaining, 0)
+  const { items: payPage, info: payInfo } = paginate(pays, c.req.url, 10)
   return page(
     c,
     'مدفوعاتي',
@@ -343,7 +346,7 @@ portalRoutes.get('/student/payments', requireRole('student'), async (c) => {
           <div class="table-wrap">
             <table>
               <tbody>
-                {pays.map((p) => (
+                {payPage.map((p) => (
                   <tr>
                     <td>{fmtDate(p.paid_on)}</td>
                     <td>{p.title}</td>
@@ -356,8 +359,9 @@ portalRoutes.get('/student/payments', requireRole('student'), async (c) => {
             </table>
           </div>
         ) : (
-          <Empty icon="💳" text="لا توجد تحويلات." />
+          <Empty icon="credit-card" text="لا توجد تحويلات." />
         )}
+        {pays.length > 0 && <Pager info={payInfo} url={c.req.url} />}
       </div>
     </>,
   )

@@ -68,6 +68,7 @@ export interface InstallmentView extends InstallmentOut {
   student_id: number
   student_name: string
   student_phone: string
+  student_avatar_v?: number | null
   course_id: number
   course_title: string
 }
@@ -86,7 +87,7 @@ export async function installmentStates(db: D1Database, opts: { studentId?: numb
   }
   const w = where.join(' AND ')
   const [inst, paid] = await db.batch([
-    db.prepare(`SELECT i.id, i.amount, i.due_date, e.id AS enrollment_id, u.id AS student_id, u.name AS student_name, u.phone AS student_phone,
+    db.prepare(`SELECT i.id, i.amount, i.due_date, e.id AS enrollment_id, u.id AS student_id, u.name AS student_name, u.phone AS student_phone, u.avatar_v AS student_avatar_v,
                   c.id AS course_id, c.title AS course_title
                 FROM installments i JOIN enrollments e ON e.id = i.enrollment_id JOIN users u ON u.id = e.student_id JOIN courses c ON c.id = e.course_id
                 WHERE ${w}`).bind(...binds),

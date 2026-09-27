@@ -8,7 +8,8 @@ import { back, form, go, int, str } from '../lib/http'
 import { notFound, page } from '../lib/render'
 import { fmtDateTime } from '../lib/time'
 import type { AppEnv, Role, SessionUser } from '../lib/types'
-import { Empty } from '../views/layout'
+import { Avatar, Empty } from '../views/layout'
+import { Icon } from '../views/icons'
 
 export const messageRoutes = new Hono<AppEnv>()
 
@@ -17,6 +18,7 @@ interface Contact {
   name: string
   role: Role
   unread: number
+  avatar_v?: number | null
   last_at: number | null
   last_body: string | null
 }
@@ -35,7 +37,7 @@ async function contactsFor(db: D1Database, user: SessionUser): Promise<Contact[]
       SELECT c.teacher_id FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.student_id = ?1 AND e.status = 'active'))`
   const rows = await db
     .prepare(
-      `SELECT u.id, u.name, u.role,
+      `SELECT u.id, u.name, u.role, u.avatar_v,
         (SELECT COUNT(*) FROM messages m WHERE m.sender_id = u.id AND m.recipient_id = ?1 AND m.read_at IS NULL) AS unread,
         (SELECT MAX(created_at) FROM messages m WHERE (m.sender_id = u.id AND m.recipient_id = ?1) OR (m.sender_id = ?1 AND m.recipient_id = u.id)) AS last_at,
         (SELECT body FROM messages m WHERE (m.sender_id = u.id AND m.recipient_id = ?1) OR (m.sender_id = ?1 AND m.recipient_id = u.id) ORDER BY m.id DESC LIMIT 1) AS last_body
@@ -61,7 +63,7 @@ messageRoutes.get('/messages', requireRole(), async (c) => {
   let thread: { id: number; sender_id: number; body: string; created_at: number }[] = []
   if (withId) {
     if (!(await canMessage(c.env.DB, user, withId))) return notFound(c)
-    other = contacts.find((x) => x.id === withId) ?? (await c.env.DB.prepare('SELECT id, name, role, 0 AS unread FROM users WHERE id = ?').bind(withId).first<Contact>())!
+    other = contacts.find((x) => x.id === withId) ?? (await c.env.DB.prepare('SELECT id, name, role, avatar_v, 0 AS unread FROM users WHERE id = ?').bind(withId).first<Contact>())!
     thread = (
       await c.env.DB.prepare(
         `SELECT * FROM (SELECT id, sender_id, body, created_at FROM messages
@@ -78,13 +80,16 @@ messageRoutes.get('/messages', requireRole(), async (c) => {
     'الرسائل',
     <div class={`chat ${other ? 'has-thread' : ''}`}>
       <div class="people">
-        <form method="get" action="/messages" style="padding:.6rem;border-bottom:1px solid var(--line);display:block">
-          <input name="q" value={q} placeholder="🔍 ابحث بالاسم…" />
+        <form method="get" action="/messages" class="search" role="search">
+          <div class="input-icon">
+            <Icon name="search" />
+            <input type="search" name="q" value={q} placeholder="ابحث بالاسم…" aria-label="بحث في جهات الاتصال" />
+          </div>
         </form>
         {contacts.length === 0 && <p class="muted" style="padding:1rem">لا توجد جهات اتصال.</p>}
         {contacts.map((p) => (
           <a href={`/messages?with=${p.id}`} class={p.id === withId ? 'active' : ''}>
-            <span class="avatar">{p.name.charAt(0)}</span>
+            <Avatar name={p.name} id={p.id} v={p.avatar_v} />
             <div style="flex:1;min-width:0">
               <div class="flex between" style="flex-wrap:nowrap">
                 <b style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{p.name}</b>
@@ -101,18 +106,18 @@ messageRoutes.get('/messages', requireRole(), async (c) => {
       <div class="thread">
         {other ? (
           <>
-            <div class="flex" style="padding:.7rem 1rem;border-bottom:1px solid var(--line)">
-              <a href="/messages" class="btn btn-ghost btn-sm">
-                →
+            <div class="thread-head">
+              <a href="/messages" class="icon-btn chat-back" aria-label="رجوع لقائمة المحادثات">
+                <Icon name="arrow-right" />
               </a>
-              <span class="avatar">{other.name.charAt(0)}</span>
+              <Avatar name={other.name} id={other.id} v={other.avatar_v} />
               <div>
                 <b>{other.name}</b>
                 <div class="muted" style="font-size:.78rem">{roleTag[other.role]}</div>
               </div>
             </div>
             <div class="msgs" id="msgs">
-              {thread.length === 0 && <p class="muted" style="text-align:center">ابدأ المحادثة 👋</p>}
+              {thread.length === 0 && <p class="muted" style="text-align:center">ابدأ المحادثة</p>}
               {thread.map((m) => (
                 <div class={`bubble ${m.sender_id === user.id ? 'me' : 'them'}`}>
                   {m.body}
@@ -120,15 +125,17 @@ messageRoutes.get('/messages', requireRole(), async (c) => {
                 </div>
               ))}
             </div>
-            <form method="post" action="/messages">
+            <form method="post" action="/messages" class="compose">
               <input type="hidden" name="to" value={other.id} />
-              <textarea name="body" required maxlength={4000} placeholder="اكتب رسالتك…" data-enter-submit="1"></textarea>
-              <button class="btn">إرسال</button>
+              <textarea name="body" required maxlength={4000} placeholder="اكتب رسالتك…" data-enter-submit="1" aria-label="نص الرسالة"></textarea>
+              <button class="btn" aria-label="إرسال">
+                <Icon name="send" class="flip" />
+              </button>
             </form>
           </>
         ) : (
           <div style="margin:auto">
-            <Empty icon="💬" text="اختر محادثة من القائمة" />
+            <Empty icon="message-circle" text="اختر محادثة من القائمة" />
           </div>
         )}
       </div>

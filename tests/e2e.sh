@@ -138,6 +138,23 @@ expect 303 "إنشاء طالب" "${A[@]}" -d "role=student&name=طالب جدي
 curl -s -o /dev/null -c "$J/new" "${H[@]}" -d "phone=0590$RUN&password=secret123" "$BASE/login"
 expect 200 "الطالب الجديد يدخل" -b "$J/new" "$BASE/student"
 
+echo "▶ الملف الشخصي والصور وترقيم الصفحات"
+expect 200 "صفحة ملفي" "${S[@]}" "$BASE/me"
+expect 302 "ملفي بدون دخول ⇐ الدخول" "$BASE/me"
+printf '\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00' > "$J/a.jpg"
+expect 303 "رفع صورة JPEG صالحة" "${S[@]}" -F "avatar=@$J/a.jpg;type=image/jpeg" "$BASE/me/avatar"
+printf '<svg onload=alert(1)>..............' > "$J/x.png"
+expect 400 "رفض ملف متنكر كصورة" "${S[@]}" -H "Accept: application/json" -F "avatar=@$J/x.png;type=image/png" "$BASE/me/avatar"
+SID=$(curl -s "${S[@]}" "$BASE/me" | grep -o '/avatars/[0-9]*' | head -1)
+expect 200 "عرض الصورة لمستخدم مسجل" "${A[@]}" "$BASE$SID"
+expect 302 "الصورة محمية عن الزوار" "$BASE$SID"
+expect 403 "الطالب لا يغيّر صورة غيره" "${S[@]}" -F "avatar=@$J/a.jpg;type=image/jpeg" "$BASE/admin/users/1/avatar"
+expect 303 "حذف الصورة" -X POST "${S[@]}" "$BASE/me/avatar/delete"
+expect 303 "كلمة مرور حالية خاطئة تُرفض بلطف" "${S[@]}" -d "current=nope&password=newpass123&password2=newpass123" "$BASE/me/password"
+has "ترقيم: الأقساط مقسّمة لصفحات" 'aria-label="ترقيم الصفحات"' "${A[@]}" "$BASE/admin/finance/installments?filter=all"
+expect 200 "ترقيم: صفحة خارج النطاق تُقيَّد بآخر صفحة" "${A[@]}" "$BASE/admin/users?role=student&page=9999"
+has "بحث المستخدمين" 'cell-user' "${A[@]}" "$BASE/admin/users?role=student&q=05"
+
 echo "▶ الخروج"
 expect 303 "تسجيل الخروج" -X POST "${S[@]}" "$BASE/logout"
 expect 302 "الجلسة أُلغيت فعلاً" -b "$J/student" "$BASE/student"

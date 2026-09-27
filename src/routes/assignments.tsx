@@ -11,7 +11,9 @@ import { notFound, page } from '../lib/render'
 import { randomHex } from '../lib/security'
 import { fmtDateTime, nowSec, parseLocalDateTime, toLocalInput } from '../lib/time'
 import type { AppEnv, SessionUser } from '../lib/types'
-import { Empty, PageHead } from '../views/layout'
+import { Empty, PageHead, Pager } from '../views/layout'
+import { paginate } from '../lib/paging'
+import { Icon } from '../views/icons'
 
 export const assignmentRoutes = new Hono<AppEnv>()
 
@@ -80,7 +82,7 @@ async function getAsg(db: D1Database, id: number) {
 function DueBadge({ due, now }: { due: number | null; now: number }) {
   if (!due) return <span class="badge gray">بدون موعد</span>
   if (due < now) return <span class="badge gray">انتهى {fmtDateTime(due)}</span>
-  if (due - now < 86400) return <span class="badge bad">⏰ آخر موعد {fmtDateTime(due)}</span>
+  if (due - now < 86400) return <span class="badge bad"><Icon name="calendar-clock" /> آخر موعد {fmtDateTime(due)}</span>
   return <span class="badge warn">آخر موعد {fmtDateTime(due)}</span>
 }
 
@@ -92,6 +94,7 @@ export async function assignmentsPage(c: Context<AppEnv>) {
   const isStaff = user.role !== 'student'
   const courses = isStaff ? await coursesFor(c.env.DB, user) : []
   const pending = list.filter((a) => !a.my_submitted_at && (!a.due_at || a.due_at > now))
+  const { items, info } = paginate(list, c.req.url)
   return page(
     c,
     'الواجبات',
@@ -139,17 +142,18 @@ export async function assignmentsPage(c: Context<AppEnv>) {
         </details>
       )}
       {list.length ? (
+        <>
         <div class="list">
-          {list.map((a) => (
+          {items.map((a) => (
             <a class="item" href={`/assignments/${a.id}`} style="color:inherit;text-decoration:none">
-              <div class="dot">📝</div>
+              <div class="dot"><Icon name="notebook-pen" /></div>
               <div class="grow">
                 <div class="title">{a.title}</div>
                 <div class="meta">
-                  <span>📚 {a.course_title}</span>
+                  <span><Icon name="book-open" /> {a.course_title}</span>
                   {isStaff && (
                     <span>
-                      📥 سلّم {a.submitted}/{a.students} • ✅ صُحح {a.graded}
+                      <Icon name="inbox" /> سلّم {a.submitted}/{a.students} • <Icon name="circle-check" /> صُحح {a.graded}
                     </span>
                   )}
                 </div>
@@ -161,7 +165,7 @@ export async function assignmentsPage(c: Context<AppEnv>) {
                         الدرجة: {a.my_grade}/{a.max_grade}
                       </span>
                     ) : a.my_submitted_at ? (
-                      <span class="badge ok">✓ تم التسليم</span>
+                      <span class="badge ok"><Icon name="check" /> تم التسليم</span>
                     ) : (
                       <span class="badge bad">لم يُسلَّم</span>
                     ))}
@@ -171,9 +175,11 @@ export async function assignmentsPage(c: Context<AppEnv>) {
             </a>
           ))}
         </div>
+        <Pager info={info} url={c.req.url} />
+        </>
       ) : (
         <div class="card">
-          <Empty icon="📝" text="لا توجد واجبات بعد." />
+          <Empty icon="notebook-pen" text="لا توجد واجبات بعد." />
         </div>
       )}
     </>,
@@ -217,7 +223,7 @@ assignmentRoutes.get('/assignments/:id', requireRole(), async (c) => {
       c,
       a.title,
       <>
-        <PageHead title={a.title} sub={`📚 ${a.course_title}`}>
+        <PageHead title={a.title} sub={`${a.course_title}`}>
           <a class="btn btn-ghost" href={back_}>
             رجوع
           </a>
@@ -231,7 +237,7 @@ assignmentRoutes.get('/assignments/:id', requireRole(), async (c) => {
             <p style="white-space:pre-wrap">{a.description || 'لا توجد تعليمات إضافية.'}</p>
             {a.file_key && (
               <a class="btn btn-soft" href={`/files/assignment/${a.id}`}>
-                📎 {a.file_name}
+                <Icon name="paperclip" /> {a.file_name}
               </a>
             )}
           </div>
@@ -250,7 +256,7 @@ assignmentRoutes.get('/assignments/:id', requireRole(), async (c) => {
             {mine && (
               <p class="muted">
                 آخر تسليم: {fmtDateTime(mine.submitted_at)}
-                {mine.file_name && ` • 📎 ${mine.file_name}`}
+                {mine.file_name && ` • ${mine.file_name}`}
               </p>
             )}
             {locked ? (
@@ -292,7 +298,7 @@ assignmentRoutes.get('/assignments/:id', requireRole(), async (c) => {
     c,
     a.title,
     <>
-      <PageHead title={a.title} sub={`📚 ${a.course_title} • سلّم ${subs.filter((s) => s.id).length} من ${subs.length}`}>
+      <PageHead title={a.title} sub={`${a.course_title} • سلّم ${subs.filter((s) => s.id).length} من ${subs.length}`}>
         <a class="btn btn-ghost" href={back_}>
           رجوع
         </a>
@@ -307,7 +313,7 @@ assignmentRoutes.get('/assignments/:id', requireRole(), async (c) => {
         <p style="white-space:pre-wrap;margin:0">{a.description || '—'}</p>
         {a.file_key && (
           <a class="btn btn-soft mt" href={`/files/assignment/${a.id}`}>
-            📎 {a.file_name}
+            <Icon name="paperclip" /> {a.file_name}
           </a>
         )}
       </div>
@@ -337,7 +343,7 @@ assignmentRoutes.get('/assignments/:id', requireRole(), async (c) => {
                 {s.body && <p style="white-space:pre-wrap;background:var(--bg);padding:.7rem;border-radius:10px">{s.body}</p>}
                 {s.file_name && (
                   <a class="btn btn-soft btn-sm" href={`/files/submission/${s.id}`}>
-                    📎 {s.file_name}
+                    <Icon name="paperclip" /> {s.file_name}
                   </a>
                 )}
                 <form method="post" action={`/submissions/${s.id}/grade`} class="form-grid mt" style="align-items:end">
@@ -357,7 +363,7 @@ assignmentRoutes.get('/assignments/:id', requireRole(), async (c) => {
         ))}
         {subs.length === 0 && (
           <div class="card">
-            <Empty icon="🎒" text="لا يوجد طلاب مسجلون في هذه الدورة." />
+            <Empty icon="backpack" text="لا يوجد طلاب مسجلون في هذه الدورة." />
           </div>
         )}
       </div>
@@ -387,7 +393,7 @@ assignmentRoutes.post('/assignments/:id/submit', requireRole('student'), async (
   )
     .bind(a.id, user.id, body || null, saved?.key ?? null, saved?.name ?? null)
     .run()
-  return go(c, `/assignments/${a.id}`, 'ok', 'تم تسليم الواجب ✅')
+  return go(c, `/assignments/${a.id}`, 'ok', 'تم تسليم الواجب')
 })
 
 assignmentRoutes.post('/submissions/:id/grade', requireRole('admin', 'teacher'), async (c) => {

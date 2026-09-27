@@ -11,6 +11,7 @@ import { financeRoutes } from './routes/finance'
 import { lessonRoutes } from './routes/lessons'
 import { messageRoutes } from './routes/messages'
 import { portalRoutes } from './routes/portals'
+import { profileRoutes } from './routes/profile'
 import { publicRoutes } from './routes/public'
 import { maybeCleanup, recordingRoutes, recordingsPage } from './routes/recordings'
 
@@ -51,6 +52,7 @@ app.route('/', messageRoutes)
 app.route('/', financeRoutes)
 app.route('/', adminRoutes)
 app.route('/', portalRoutes)
+app.route('/', profileRoutes)
 
 // صفحات مشتركة لدور الإدارة
 app.get('/admin/assignments', requireRole('admin'), (c) => assignmentsPage(c))

@@ -11,7 +11,9 @@ import { allocate, newRoomKey } from '../lib/scheduling'
 import { jitsiToken } from '../lib/security'
 import { fmtDateTime, fmtDuration, fmtTime, nowSec, parseLocalDateTime, toLocalInput } from '../lib/time'
 import type { AppEnv, SessionUser } from '../lib/types'
-import { Empty, PageHead } from '../views/layout'
+import { Empty, PageHead, Pager } from '../views/layout'
+import { paginate } from '../lib/paging'
+import { Icon, IconTile } from '../views/icons'
 
 export const lessonRoutes = new Hono<AppEnv>()
 
@@ -26,28 +28,28 @@ export function PhaseBadge({ l, now }: { l: LessonRow; now: number }) {
 }
 
 export const ProviderBadge = ({ l }: { l: LessonRow }) =>
-  l.provider === 'zoom' ? <span class="badge" style="background:#e8f1ff;color:#1f6feb">🎥 زوم • {l.room_name}</span> : <span class="badge ok">📡 بث المنصة</span>
+  l.provider === 'zoom' ? <span class="badge zoom"><Icon name="video" /> زوم • {l.room_name}</span> : <span class="badge ok"><Icon name="radio-tower" /> بث المنصة</span>
 
 export function LessonItem({ l, now, user }: { l: LessonRow; now: number; user: SessionUser }) {
   const phase = lessonPhase(l, now)
   const joinable = canJoinNow(l, now)
   return (
     <div class={`item ${phase === 'live' ? 'live' : ''}`}>
-      <div class="dot">{l.provider === 'zoom' ? '🎥' : '📡'}</div>
+      <div class="dot"><Icon name={l.provider === 'zoom' ? 'video' : 'radio-tower'} /></div>
       <div class="grow">
         <div class="title">{l.title}</div>
         <div class="meta">
-          <span>📚 {l.course_title}</span>
-          {user.role !== 'teacher' && l.teacher_name && <span>👩‍🏫 {l.teacher_name}</span>}
+          <span><Icon name="book-open" /> {l.course_title}</span>
+          {user.role !== 'teacher' && l.teacher_name && <span><Icon name="presentation" /> {l.teacher_name}</span>}
           <span>
-            🕒 {fmtDateTime(l.starts_at)} ({fmtDuration(l.ends_at - l.starts_at)})
+            <Icon name="clock" /> {fmtDateTime(l.starts_at)} ({fmtDuration(l.ends_at - l.starts_at)})
           </span>
-          {user.role !== 'student' && <span>👥 {l.students}</span>}
+          {user.role !== 'student' && <span><Icon name="users" /> {l.students}</span>}
         </div>
         <div class="flex mt-0" style="margin-top:.35rem">
           <PhaseBadge l={l} now={now} />
           <ProviderBadge l={l} />
-          {l.recordings > 0 && <span class="badge teal" style="background:#e3f8f5;color:#0a8a7d">🎬 {l.recordings} تسجيل</span>}
+          {l.recordings > 0 && <span class="badge teal"><Icon name="clapperboard" /> {l.recordings} تسجيل</span>}
         </div>
       </div>
       <div class="actions">
@@ -74,6 +76,7 @@ lessonRoutes.get('/lessons', requireRole('admin', 'teacher'), async (c) => {
     view === 'past'
       ? (await lessonsFor(c.env.DB, user, now - 30 * 86400, now, 300)).filter((l) => lessonPhase(l, now) === 'ended' || l.status === 'cancelled').reverse()
       : (await lessonsFor(c.env.DB, user, now - 3 * 3600, now + 60 * 86400, 300)).filter((l) => !['ended', 'cancelled'].includes(lessonPhase(l, now)))
+  const { items: pageLessons, info } = paginate(lessons, c.req.url)
   const courses = await coursesFor(c.env.DB, user)
   const rooms = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM zoom_rooms WHERE active = 1').first<{ n: number }>()
   const nextHour = Math.ceil((now + 3600) / 1800) * 1800
@@ -151,14 +154,17 @@ lessonRoutes.get('/lessons', requireRole('admin', 'teacher'), async (c) => {
         </a>
       </div>
       {lessons.length ? (
-        <div class="list">
-          {lessons.map((l) => (
-            <LessonItem l={l} now={now} user={user} />
-          ))}
-        </div>
+        <>
+          <div class="list">
+            {pageLessons.map((l) => (
+              <LessonItem l={l} now={now} user={user} />
+            ))}
+          </div>
+          <Pager info={info} url={c.req.url} />
+        </>
       ) : (
         <div class="card">
-          <Empty icon="🗓️" text="لا توجد حصص هنا." />
+          <Empty icon="calendar-days" text="لا توجد حصص هنا." />
         </div>
       )}
     </>,
@@ -284,8 +290,8 @@ lessonRoutes.get('/lessons/:id', requireRole(), async (c) => {
         <div>
           <h1>{l.title}</h1>
           <p>
-            📚 {l.course_title}
-            {l.teacher_name && ` • 👩‍🏫 ${l.teacher_name}`} • 🕒 {fmtDateTime(l.starts_at)} – {fmtTime(l.ends_at)}
+            <Icon name="book-open" /> {l.course_title}
+            {l.teacher_name && ` • ${l.teacher_name}`} • <Icon name="clock" /> {fmtDateTime(l.starts_at)} – {fmtTime(l.ends_at)}
           </p>
           <div class="flex" style="margin-top:.4rem">
             <PhaseBadge l={l} now={now} />
@@ -301,7 +307,7 @@ lessonRoutes.get('/lessons/:id', requireRole(), async (c) => {
             )}
             {l.status === 'live' && (
               <form method="post" action={`/lessons/${l.id}/end`} data-confirm="إنهاء الحصة للجميع؟">
-                <button class="btn btn-danger">⏹ إنهاء الحصة</button>
+                <button class="btn btn-danger"><Icon name="square" /> إنهاء الحصة</button>
               </form>
             )}
             {l.status === 'scheduled' && (
@@ -334,15 +340,15 @@ lessonRoutes.get('/lessons/:id', requireRole(), async (c) => {
             {l.provider === 'jitsi' && phase !== 'ended' && (
               <>
                 <button class="btn btn-danger" id="recStart" type="button">
-                  ⏺ ابدأ التسجيل
+                  <Icon name="circle-dot" /> ابدأ التسجيل
                 </button>
                 <button class="btn btn-ghost" id="recStop" type="button" hidden>
-                  ⏹ إيقاف وحفظ
+                  <Icon name="square" /> إيقاف وحفظ
                 </button>
               </>
             )}
             <label class="btn btn-soft" style="margin:0">
-              ⬆ رفع ملف
+              <Icon name="upload" /> رفع ملف
               <input type="file" id="recFile" accept="video/*" hidden />
             </label>
           </div>
@@ -352,19 +358,19 @@ lessonRoutes.get('/lessons/:id', requireRole(), async (c) => {
       {/* منطقة الحصة */}
       {phase === 'cancelled' ? (
         <div class="card">
-          <Empty icon="🚫" text="تم إلغاء هذه الحصة." />
+          <Empty icon="ban" text="تم إلغاء هذه الحصة." />
         </div>
       ) : !joinable ? (
         <div class="card">
           {phase === 'upcoming' ? (
-            <Empty icon="⏳" text={`الحصة تبدأ ${fmtDateTime(l.starts_at)}. يُفتح الدخول قبل الموعد بـ 15 دقيقة.`} />
+            <Empty icon="hourglass" text={`الحصة تبدأ ${fmtDateTime(l.starts_at)}. يُفتح الدخول قبل الموعد بـ 15 دقيقة.`} />
           ) : (
-            <Empty icon="✅" text="انتهت هذه الحصة." />
+            <Empty icon="circle-check" text="انتهت هذه الحصة." />
           )}
         </div>
       ) : l.provider === 'zoom' && zoom ? (
         <div class="card" style="text-align:center;padding:2.5rem 1.25rem">
-          <div style="font-size:3rem">🎥</div>
+          <IconTile name="video" tone="info" size="lg" />
           <h2>الحصة على زوم — {l.room_name}</h2>
           <p class="muted">اضغط الزر للدخول. الرابط خاص بطلاب هذه الدورة فقط، لا تشاركه.</p>
           <a class="btn btn-lg" href={zoom.join_url} target="_blank" rel="noopener noreferrer">
@@ -386,7 +392,7 @@ lessonRoutes.get('/lessons/:id', requireRole(), async (c) => {
       ) : l.provider === 'jitsi' && jitsi ? (
         waitingForTeacher ? (
           <div class="card">
-            <Empty icon="⏳" text="بانتظار المعلمة لبدء الحصة… ستفتح الغرفة تلقائياً.">
+            <Empty icon="hourglass" text="بانتظار المعلمة لبدء الحصة… ستفتح الغرفة تلقائياً.">
               <script dangerouslySetInnerHTML={{ __html: 'setTimeout(()=>location.reload(),15000)' }} />
             </Empty>
           </div>
@@ -403,13 +409,13 @@ lessonRoutes.get('/lessons/:id', requireRole(), async (c) => {
         )
       ) : (
         <div class="card">
-          <Empty icon="⚠️" text="تعذر تحميل بيانات الغرفة." />
+          <Empty icon="triangle-alert" text="تعذر تحميل بيانات الغرفة." />
         </div>
       )}
 
       {recs.length > 0 && (
         <div class="card mt">
-          <h3>🎬 تسجيلات هذه الحصة</h3>
+          <h3><Icon name="clapperboard" /> تسجيلات هذه الحصة</h3>
           <div class="list">
             {recs.map((r, i) => (
               <div class="item">

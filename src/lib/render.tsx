@@ -1,6 +1,6 @@
 import type { Context } from 'hono'
 import type { Child } from 'hono/jsx'
-import { AppLayout } from '../views/layout'
+import { AppLayout, Empty } from '../views/layout'
 import { isDemo, takeFlash, unreadCount } from './http'
 import type { AppEnv } from './types'
 
@@ -10,7 +10,7 @@ export async function page(c: Context<AppEnv>, title: string, body: Child, opts:
   const unread = await unreadCount(c.env.DB, user)
   const url = new URL(c.req.url)
   return c.html(
-    <AppLayout title={title} user={user} path={url.pathname} unread={unread} flash={takeFlash(c)} scripts={opts.scripts} demo={isDemo(c)}>
+    <AppLayout title={title} user={user} path={url.pathname} search={url.search} unread={unread} flash={takeFlash(c)} scripts={opts.scripts} demo={isDemo(c)}>
       {body}
     </AppLayout>,
     (opts.status ?? 200) as 200,
@@ -22,10 +22,12 @@ export async function notFound(c: Context<AppEnv>, text = 'العنصر غير �
   return page(
     c,
     'غير موجود',
-    <div class="card empty">
-      <div class="big">🔍</div>
-      <p>{text}</p>
-      <a class="btn btn-soft" href="/">العودة</a>
+    <div class="card">
+      <Empty icon="search" text={text}>
+        <a class="btn btn-soft" href="/">
+          العودة للرئيسية
+        </a>
+      </Empty>
     </div>,
     { status: 404 },
   )

@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { homeFor, isValidPhone, login, logout, normalizePhone } from '../lib/auth'
 import { form, isDemo, str } from '../lib/http'
 import type { AppEnv } from '../lib/types'
-import { Head } from '../views/layout'
+import { ASSET_V, Head, Logo } from '../views/layout'
+import { Icon, type IconName } from '../views/icons'
 import { Landing } from '../views/landing'
 
 export const publicRoutes = new Hono<AppEnv>()
@@ -29,54 +30,125 @@ publicRoutes.post('/lead', async (c) => {
 })
 
 function LoginPage({ error, next, demo, phone }: { error?: string; next: string; demo: boolean; phone?: string }) {
+  const demoUsers: [string, string, IconName, string][] = [
+    ['0500000001', 'الإدارة', 'shield-check', 'brand'],
+    ['0510000001', 'معلمة', 'presentation', 'pink'],
+    ['0550000001', 'طالب', 'graduation-cap', 'teal'],
+  ]
   return (
     <html lang="ar" dir="rtl">
-      <Head title="تسجيل الدخول — إضاءات" />
+      <Head title="تسجيل الدخول — إضاءات" noindex />
       <body>
         <div class="auth">
-          <div class="box">
-            <a href="/" class="flex" style="justify-content:center;margin-bottom:1.25rem;text-decoration:none;color:var(--ink)">
-              <span class="logo">إ</span>
-              <b style="font-size:1.4rem">إضاءات</b>
-            </a>
-            <div class="card">
-              <h1 style="font-size:1.3rem;text-align:center">أهلاً بك 👋</h1>
-              <p class="muted" style="text-align:center">سجّل دخولك برقم الجوال</p>
-              {error && <div class="alert bad">{error}</div>}
+          <div class="auth-form">
+            <div class="box">
+              <a href="/" class="auth-brand" aria-label="إضاءات — الرئيسية">
+                <Logo size={44} />
+                <span>
+                  إضاءات
+                  <small>منصة التعليم المباشر</small>
+                </span>
+              </a>
+              <h1 class="auth-title">أهلاً بعودتك</h1>
+              <p class="muted auth-sub">سجّل دخولك برقم الجوال وكلمة المرور.</p>
+              {error && (
+                <div class="alert bad" role="alert">
+                  <Icon name="circle-alert" />
+                  <div>{error}</div>
+                </div>
+              )}
               <form method="post" action="/login" id="loginForm">
                 <input type="hidden" name="next" value={next} />
                 <div class="field">
                   <label for="phone">رقم الجوال</label>
-                  <input id="phone" name="phone" required inputmode="tel" dir="ltr" placeholder="05xxxxxxxx" autocomplete="username" value={phone ?? ''} />
+                  <div class="input-icon">
+                    <Icon name="smartphone" />
+                    <input id="phone" name="phone" required inputmode="tel" dir="ltr" placeholder="05xxxxxxxx" autocomplete="username" value={phone ?? ''} autofocus={!phone} />
+                  </div>
                 </div>
                 <div class="field">
                   <label for="password">كلمة المرور</label>
-                  <input id="password" name="password" type="password" required autocomplete="current-password" />
+                  <div class="input-icon">
+                    <Icon name="key-round" />
+                    <input id="password" name="password" type="password" required autocomplete="current-password" autofocus={!!phone} style="padding-left:3rem" />
+                    <button type="button" class="icon-btn pw-toggle" data-pw-toggle="password" aria-label="إظهار كلمة المرور" aria-pressed="false">
+                      <Icon name="eye" class="pw-show" />
+                      <Icon name="eye-off" class="pw-hide" />
+                    </button>
+                  </div>
                 </div>
-                <button class="btn btn-lg btn-block">دخول</button>
+                <button class="btn btn-grad btn-lg btn-block">
+                  دخول <Icon name="arrow-left" />
+                </button>
               </form>
               {demo && (
-                <>
-                  <hr />
-                  <p class="muted" style="text-align:center;font-size:.85rem;margin-bottom:.6rem">
-                    حسابات تجريبية للمعاينة (كلمة المرور: <b class="num">demo1234</b>)
-                  </p>
-                  <div class="demo-users">
-                    <button type="button" data-phone="0500000001">🛡️ الإدارة</button>
-                    <button type="button" data-phone="0510000001">👩‍🏫 معلمة</button>
-                    <button type="button" data-phone="0550000001">🎒 طالب</button>
+                <div class="demo-box">
+                  <div class="demo-head">
+                    <Icon name="sparkles" /> جرّب المنصة بحساب تجريبي
                   </div>
+                  <div class="demo-users">
+                    {demoUsers.map(([ph, label, icon, tone]) => (
+                      <button type="button" data-phone={ph} class={`tone-${tone}`}>
+                        <span class="tile tile-md">
+                          <Icon name={icon} />
+                        </span>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p class="hint" style="text-align:center;margin:.6rem 0 0">
+                    كلمة المرور لكل الحسابات: <b class="num">demo1234</b>
+                  </p>
                   <script
                     dangerouslySetInnerHTML={{
-                      __html: `document.querySelectorAll('.demo-users button').forEach(b=>b.onclick=()=>{phone.value=b.dataset.phone;password.value='demo1234';loginForm.submit()})`,
+                      __html: `document.querySelectorAll('.demo-users button').forEach(b=>b.onclick=()=>{phone.value=b.dataset.phone;password.value='demo1234';b.classList.add('picked');loginForm.requestSubmit()})`,
                     }}
                   />
-                </>
+                </div>
               )}
+              <p class="muted auth-foot">
+                <Icon name="circle-help" /> نسيت كلمة المرور؟ تواصل مع إدارة المنصة.
+              </p>
             </div>
-            <p class="muted" style="text-align:center;font-size:.85rem">نسيت كلمة المرور؟ تواصل مع إدارة المنصة.</p>
           </div>
+          <aside class="auth-art" aria-hidden="true">
+            <div class="auth-art-top">
+              <span class="pill-glass">
+                <span class="pill-dot"></span> 3 حصص مباشرة الآن
+              </span>
+            </div>
+            <div>
+              <h2>كل حصة، كل واجب، وكل متابعة — في مكان واحد.</h2>
+              <ul class="auth-points">
+                <li>
+                  <Icon name="radio-tower" /> حصص مباشرة بدون حد زمني
+                </li>
+                <li>
+                  <Icon name="clapperboard" /> تسجيلات محمية لمدة 48 ساعة
+                </li>
+                <li>
+                  <Icon name="shield-check" /> رسائل خاصة بدل الواتساب
+                </li>
+              </ul>
+            </div>
+            <figure class="quote">
+              <div class="stars">
+                {[0, 1, 2, 3, 4].map(() => (
+                  <Icon name="star" />
+                ))}
+              </div>
+              <p>«ارتحنا من الروابط والقروبات. كل شيء في مكان واحد، والمتابعة واضحة.»</p>
+              <figcaption class="flex">
+                <span class="avatar sm" style="--av:#ffb020">ف</span>
+                <span>
+                  <b>أبو فيصل</b>
+                  <small style="display:block;color:rgba(255,255,255,.7)">ولي أمر</small>
+                </span>
+              </figcaption>
+            </figure>
+          </aside>
         </div>
+        <script src={`/static/app.js?v=${ASSET_V}`} defer></script>
       </body>
     </html>
   )

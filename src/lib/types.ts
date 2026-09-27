@@ -17,6 +17,8 @@ export interface SessionUser {
   role: Role
   name: string
   phone: string
+  /** رقم نسخة صورة الملف الشخصي (null = لا توجد صورة) */
+  avatar_v?: number | null
 }
 
 export type AppEnv = {

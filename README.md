@@ -16,6 +16,7 @@
 | [docs/04-user-guide.md](docs/04-user-guide.md) | دليل الاستخدام للإدارة والمعلمات والطلاب |
 | [docs/05-testing.md](docs/05-testing.md) | الاختبارات وتغطيتها ونتائجها |
 | [docs/06-operations.md](docs/06-operations.md) | التشغيل اليومي، النسخ الاحتياطي، المراقبة، استكشاف الأخطاء |
+| [docs/07-design-system.md](docs/07-design-system.md) | نظام التصميم: الألوان، الخطوط، الأيقونات، الحركة، الوضع الداكن |
 
 ---
 

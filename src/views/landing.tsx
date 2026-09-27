@@ -1,23 +1,63 @@
-import { Head } from './layout'
+import { Icon, type IconName } from './icons'
+import { ASSET_V, Head, Logo } from './layout'
 
-const features = [
-  { i: '🎥', t: 'حصص مباشرة داخل المنصة', d: 'المعلمة تشرح والطالب يتفاعل صوت وصورة، من الجوال أو الآيباد أو اللابتوب بدون تطبيقات.' },
-  { i: '⏪', t: 'فاتك الدرس؟ ارجع له', d: 'كل حصة تتسجل وتبقى متاحة 48 ساعة للطلاب المسجلين فقط، محمية باسم الطالب.' },
-  { i: '📝', t: 'واجبات ومتابعة', d: 'واجبات بعد كل درس، تسليم إلكتروني، وتصحيح وملاحظات من المعلمة مباشرة.' },
-  { i: '💬', t: 'تواصل آمن داخل المنصة', d: 'كل التواصل بين الطالب والمعلمة والإدارة داخل المنصة. خصوصية كاملة بدون أرقام شخصية.' },
-  { i: '👩‍🏫', t: 'معلمات متميزات', d: 'نخبة من المعلمات المتخصصات بخبرة في التدريس وأساليب تفاعلية ممتعة.' },
-  { i: '👨‍👩‍👧', t: 'ولي الأمر في الصورة', d: 'متابعة الحضور والواجبات والمستوى أولاً بأول، وتقارير واضحة.' },
+/* ============================================================
+   الموقع التعريفي — v2
+   البنية مبنية على أفضل ممارسات صفحات الهبوط التعليمية:
+   ١) وعد واضح + دليل فوري (Hero + معاينة حيّة)  ٢) إزالة الاعتراضات (المميزات)
+   ٣) تقليل الغموض (خطوات البدء)  ٤) دليل اجتماعي (أرقام + آراء)  ٥) CTA واحد متكرر (احجز)
+   ============================================================ */
+
+const features: { i: IconName; t: string; d: string; tone: string; big?: boolean }[] = [
+  { i: 'radio-tower', t: 'حصص مباشرة داخل المنصة', d: 'المعلمة تشرح والطالب يتفاعل صوتاً وصورة، من الجوال أو الآيباد أو اللابتوب — بدون تطبيقات وبدون حد الـ 40 دقيقة.', tone: 'brand', big: true },
+  { i: 'rewind', t: 'فاتك الدرس؟ ارجع له', d: 'كل حصة تُسجَّل وتبقى 48 ساعة للطلاب المسجلين فقط، محمية بعلامة مائية باسم الطالب.', tone: 'teal' },
+  { i: 'notebook-pen', t: 'واجبات ومتابعة', d: 'واجب بعد كل درس، تسليم إلكتروني، وتصحيح وملاحظات من المعلمة مباشرة.', tone: 'warn' },
+  { i: 'users-round', t: 'ولي الأمر في الصورة', d: 'الحضور والواجبات والمدفوعات أولاً بأول، وتقارير واضحة بدون سؤال.', tone: 'info', big: true },
+  { i: 'shield-check', t: 'تواصل آمن وخاص', d: 'كل الرسائل داخل المنصة، بدون أرقام شخصية وبدون مجموعات واتساب.', tone: 'pink' },
+  { i: 'award', t: 'معلمات متميزات', d: 'نخبة من المعلمات المتخصصات بخبرة وأساليب تفاعلية ممتعة.', tone: 'ok' },
+  { i: 'monitor-smartphone', t: 'يعمل على كل الأجهزة', d: 'من المتصفح مباشرة، ويُثبَّت على الجوال كتطبيق بضغطة.', tone: 'brand' },
 ]
 
-const subjects = ['الرياضيات', 'اللغة الإنجليزية', 'العلوم', 'الفيزياء', 'الكيمياء', 'اللغة العربية', 'القدرات والتحصيلي', 'التأسيس والقراءة']
+const subjects: { t: string; i: IconName }[] = [
+  { t: 'الرياضيات', i: 'sigma' },
+  { t: 'اللغة الإنجليزية', i: 'languages' },
+  { t: 'العلوم', i: 'atom' },
+  { t: 'الفيزياء', i: 'zap' },
+  { t: 'الكيمياء', i: 'flask-conical' },
+  { t: 'اللغة العربية', i: 'pen-tool' },
+  { t: 'القدرات والتحصيلي', i: 'brain' },
+  { t: 'التأسيس والقراءة', i: 'book-marked' },
+]
+
+const steps: { i: IconName; t: string; d: string }[] = [
+  { i: 'mouse-pointer-click', t: 'احجز حصة تجريبية', d: 'عبّي النموذج في أقل من دقيقة، ونتواصل معك خلال يوم عمل.' },
+  { i: 'target', t: 'نحدد المستوى', d: 'نقيّم مستوى الطالب مجاناً ونختار له الفصل المناسب.' },
+  { i: 'circle-play', t: 'ابدأ الحصص', d: 'تستلم حسابك وتدخل حصصك المباشرة من أي جهاز بضغطة.' },
+  { i: 'trending-up', t: 'تابع التقدم', d: 'تسجيلات وواجبات وتقارير مستمرة لولي الأمر.' },
+]
+
+const testimonials = [
+  { n: 'أم عبدالله', r: 'ولية أمر — الصف الثاني المتوسط', q: 'أول مرة أحس إني أعرف وش يصير مع ولدي. الواجبات والحضور قدامي، ومستواه في الرياضيات تحسن بشكل واضح خلال شهر.' },
+  { n: 'ريم', r: 'طالبة — الصف الثالث الثانوي', q: 'الفصل صغير والأستاذة تعرف اسمي وتسألني. ولما فاتتني حصة رجعت للتسجيل نفس اليوم.' },
+  { n: 'أبو فيصل', r: 'ولي أمر — القدرات', q: 'ارتحنا من الروابط والقروبات. كل شيء في مكان واحد، والتذكير بالأقساط واضح ومحترم.' },
+]
 
 const faqs = [
-  { q: 'كيف تتم الحصص؟', a: 'الحصص مباشرة (بث حي) داخل المنصة. يدخل الطالب بحسابه ويضغط «دخول الحصة» في وقتها، ويتفاعل مع المعلمة صوت وصورة.' },
-  { q: 'إذا فاتت الطالب حصة؟', a: 'تتسجل الحصة وتبقى متاحة 48 ساعة في حساب الطالب، يشاهدها من أي جهاز. التسجيل محمي ولا يمكن تحميله.' },
+  { q: 'كيف تتم الحصص؟', a: 'الحصص مباشرة (بث حي) داخل المنصة. يدخل الطالب بحسابه ويضغط «دخول الحصة» في وقتها، ويتفاعل مع المعلمة صوتاً وصورة.' },
+  { q: 'إذا فاتت الطالب حصة؟', a: 'تُسجَّل الحصة وتبقى متاحة 48 ساعة في حساب الطالب، يشاهدها من أي جهاز. التسجيل محمي ولا يمكن تحميله.' },
   { q: 'كم عدد الطلاب في الفصل؟', a: 'فصولنا صغيرة من 2 إلى 7 طلاب، عشان كل طالب ياخذ حقه من الاهتمام والمشاركة.' },
   { q: 'هل أحتاج تطبيق؟', a: 'لا، المنصة تعمل من المتصفح مباشرة، وتقدر تثبتها على شاشة الجوال كتطبيق بضغطة واحدة.' },
   { q: 'كيف الدفع؟', a: 'بالتحويل البنكي، ومتاح التقسيط حسب الدورة. تواصل معنا لمعرفة الأسعار والعروض الحالية.' },
 ]
+
+const Check = ({ children }: { children: string }) => (
+  <li>
+    <span class="ck">
+      <Icon name="check" />
+    </span>
+    {children}
+  </li>
+)
 
 export function Landing({ sent }: { sent?: 'ok' | 'bad' }) {
   const ld = {
@@ -26,239 +66,545 @@ export function Landing({ sent }: { sent?: 'ok' | 'bad' }) {
     name: 'منصة إضاءات التعليمية',
     description: 'دروس تقوية مباشرة أونلاين بفصول صغيرة، مع تسجيلات وواجبات ومتابعة.',
     areaServed: 'SA',
+    inLanguage: 'ar',
+  }
+  const faqLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
   }
   return (
     <html lang="ar" dir="rtl">
-      <Head title="إضاءات | دروس تقوية مباشرة أونلاين بفصول صغيرة" description="منصة إضاءات التعليمية: حصص تقوية مباشرة مع معلمات متميزات، فصول صغيرة من 2 إلى 7 طلاب، تسجيل الحصص، واجبات، ومتابعة لولي الأمر." />
+      <Head
+        title="إضاءات | دروس تقوية مباشرة أونلاين بفصول صغيرة"
+        description="منصة إضاءات التعليمية: حصص تقوية مباشرة مع معلمات متميزات، فصول صغيرة من 2 إلى 7 طلاب، تسجيل الحصص، واجبات، ومتابعة لولي الأمر."
+      />
       <body class="landing">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
-        <style dangerouslySetInnerHTML={{ __html: LANDING_CSS }} />
-        <header class="l-nav">
-          <div class="wrap flex between">
-            <a href="/" class="l-brand">
-              <span class="logo">إ</span> إضاءات
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
+        <link rel="stylesheet" href={`/static/landing.css?v=${ASSET_V}`} />
+        <a href="#main" class="skip">تخطَّ إلى المحتوى</a>
+
+        {/* ============ الشريط العلوي ============ */}
+        <header class="l-nav" id="lnav">
+          <div class="wrap l-nav-in">
+            <a href="/" class="l-brand" aria-label="إضاءات — الرئيسية">
+              <Logo size={36} />
+              <span>إضاءات</span>
             </a>
-            <nav class="l-links hide-sm">
+            <nav class="l-links" aria-label="أقسام الصفحة">
               <a href="#features">المميزات</a>
-              <a href="#how">كيف نعمل</a>
+              <a href="#how">كيف نبدأ</a>
               <a href="#subjects">المواد</a>
+              <a href="#voices">آراء</a>
               <a href="#faq">الأسئلة</a>
             </nav>
-            <div class="flex">
-              <a href="/login" class="btn btn-ghost">دخول</a>
-              <a href="#book" class="btn btn-accent hide-sm">احجز حصة مجانية</a>
+            <div class="l-actions">
+              <button class="icon-btn l-theme" id="themeBtn" aria-label="تبديل الوضع الليلي" title="الوضع الليلي">
+                <Icon name="moon" class="theme-dark" />
+                <Icon name="sun" class="theme-light" />
+              </button>
+              <a href="/login" class="btn btn-ghost l-login">
+                <Icon name="log-out" class="flip" /> دخول
+              </a>
+              <a href="#book" class="btn btn-shine hide-sm">
+                احجز حصة مجانية
+              </a>
             </div>
           </div>
         </header>
 
-        <section class="hero">
-          <div class="wrap hero-grid">
-            <div>
-              <span class="pill">✨ فصول صغيرة • متابعة حقيقية</span>
-              <h1>
-                دروس تقوية <span class="hl">مباشرة</span>
-                <br />
-                تصنع الفرق في مستوى ابنك
-              </h1>
-              <p class="lead">حصص حيّة مع معلمات متميزات، فصول من 2 إلى 7 طلاب، تسجيل لكل حصة، وواجبات ومتابعة — كل شيء في منصة واحدة وبدون واتساب.</p>
-              <div class="flex">
-                <a href="#book" class="btn btn-accent btn-lg">احجز حصة تجريبية مجانية</a>
-                <a href="/login" class="btn btn-ghost btn-lg" style="background:#fff">دخول المنصة</a>
-              </div>
-              <div class="trust">
-                <div><b>14+</b><span>معلمة متخصصة</span></div>
-                <div><b>2–7</b><span>طلاب في الفصل</span></div>
-                <div><b>48h</b><span>تسجيل لكل حصة</span></div>
-              </div>
+        <main id="main">
+          {/* ============ البطل ============ */}
+          <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-bg" aria-hidden="true">
+              <span class="orb o1"></span>
+              <span class="orb o2"></span>
+              <span class="orb o3"></span>
+              <span class="grid-lines"></span>
+              <span class="noise"></span>
             </div>
-            <div class="mock" aria-hidden="true">
-              <div class="mock-top">
-                <span class="badge live">مباشر</span>
-                <b>الرياضيات — الصف الثالث المتوسط</b>
-              </div>
-              <div class="mock-stage">
-                <div class="board">
-                  <div class="eq">س² + ٥س + ٦ = ٠</div>
-                  <div class="eq sm">(س + ٢)(س + ٣) = ٠</div>
+            <div class="wrap hero-grid">
+              <div class="hero-copy">
+                <span class="pill" data-reveal>
+                  <span class="pill-dot"></span>
+                  التسجيل مفتوح للفصل الدراسي الحالي
+                </span>
+                <h1 id="hero-title" data-reveal style="--d:80ms">
+                  دروس تقوية <span class="hl">مباشرة</span>
+                  <br />
+                  تصنع الفرق في <span class="underline">مستوى ابنك</span>
+                </h1>
+                <p class="lead" data-reveal style="--d:160ms">
+                  حصص حيّة مع معلمات متميزات، فصول من 2 إلى 7 طلاب، تسجيل لكل حصة، وواجبات ومتابعة — كل شيء في منصة واحدة وبدون واتساب.
+                </p>
+                <div class="hero-cta" data-reveal style="--d:240ms">
+                  <a href="#book" class="btn btn-shine btn-xl" data-magnet>
+                    احجز حصة تجريبية مجانية
+                    <Icon name="arrow-left" />
+                  </a>
+                  <a href="/login" class="btn btn-glass btn-xl">
+                    <Icon name="circle-play" /> دخول المنصة
+                  </a>
                 </div>
-                <div class="tiles">
-                  {['أ. نورة', 'ريم', 'سارة', 'جود'].map((n, i) => (
-                    <div class={`tile t${i}`}>
-                      <span>{n.replace('أ. ', '').charAt(0)}</span>
-                      <small>{n}</small>
+                <ul class="hero-proof" data-reveal style="--d:320ms">
+                  <li>
+                    <Icon name="badge-check" /> بدون أي التزام
+                  </li>
+                  <li>
+                    <Icon name="monitor-smartphone" /> جوال • آيباد • لابتوب
+                  </li>
+                  <li>
+                    <Icon name="lock" /> خصوصية كاملة
+                  </li>
+                </ul>
+              </div>
+
+              {/* معاينة الحصة الحيّة */}
+              <div class="stage" data-reveal="zoom" style="--d:200ms" aria-hidden="true">
+                <div class="device" data-tilt>
+                  <div class="device-top">
+                    <span class="dots">
+                      <i></i>
+                      <i></i>
+                      <i></i>
+                    </span>
+                    <span class="badge live">مباشر</span>
+                    <b>الرياضيات — الثالث المتوسط</b>
+                    <span class="timer num">
+                      <Icon name="timer" /> <span data-clock>24:18</span>
+                    </span>
+                  </div>
+                  <div class="device-body">
+                    <div class="board">
+                      <div class="board-grid"></div>
+                      <div class="eq e1">س² + ٥س + ٦ = ٠</div>
+                      <div class="eq e2">(س + ٢)(س + ٣) = ٠</div>
+                      <div class="eq e3">س = −٢ ، س = −٣</div>
+                      <svg class="scribble" viewBox="0 0 200 40" fill="none">
+                        <path d="M5 30 C 40 5, 80 45, 120 18 S 180 10, 195 25" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                      </svg>
                     </div>
-                  ))}
+                    <div class="people">
+                      {[
+                        ['ن', 'أ. نورة', '#5b3df5', true],
+                        ['ر', 'ريم', '#0d9488', false],
+                        ['س', 'سارة', '#db2777', false],
+                        ['ج', 'جود', '#c77800', false],
+                      ].map(([ch, n, col, speaking]) => (
+                        <div class={`p${speaking ? ' speaking' : ''}`} style={`--c:${col}`}>
+                          <span class="av">{ch}</span>
+                          <small>{n}</small>
+                          {speaking && (
+                            <span class="wave">
+                              <i></i>
+                              <i></i>
+                              <i></i>
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div class="device-bar">
+                    <span>
+                      <Icon name="mic" />
+                    </span>
+                    <span>
+                      <Icon name="camera" />
+                    </span>
+                    <span class="on">
+                      <Icon name="hand" />
+                    </span>
+                    <span>
+                      <Icon name="message-circle" />
+                    </span>
+                    <span class="end">إنهاء</span>
+                  </div>
+                </div>
+
+                <div class="float f1">
+                  <span class="ft tone-ok">
+                    <Icon name="circle-check" />
+                  </span>
+                  <div>
+                    <b>تم تسليم الواجب</b>
+                    <small>ريم • قبل دقيقتين</small>
+                  </div>
+                </div>
+                <div class="float f2">
+                  <span class="ft tone-teal">
+                    <Icon name="clapperboard" />
+                  </span>
+                  <div>
+                    <b>التسجيل جاهز</b>
+                    <small>متاح 48 ساعة</small>
+                  </div>
+                </div>
+                <div class="float f3">
+                  <div class="ring-sm" style="--p:96">
+                    <span class="num">96%</span>
+                  </div>
+                  <div>
+                    <b>نسبة الحضور</b>
+                    <small>هذا الشهر</small>
+                  </div>
                 </div>
               </div>
-              <div class="mock-bar">
-                <span>🎙️</span>
-                <span>📷</span>
-                <span>✋</span>
-                <span>💬</span>
-                <span class="end">إنهاء</span>
+            </div>
+
+            {/* شريط المواد المتحرك */}
+            <div class="marquee" aria-hidden="true">
+              <div class="marquee-track">
+                {[...subjects, ...subjects].map((s) => (
+                  <span>
+                    <Icon name={s.i} /> {s.t}
+                  </span>
+                ))}
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section id="features" class="sec">
-          <div class="wrap">
-            <h2 class="sec-title">كل اللي يحتاجه الطالب في مكان واحد</h2>
-            <p class="sec-sub">صممنا المنصة عشان يركز الطالب على التعلم، والمعلمة على الشرح، وولي الأمر يطمئن.</p>
-            <div class="f-grid">
-              {features.map((f) => (
-                <div class="f-card">
-                  <div class="f-ico">{f.i}</div>
-                  <h3>{f.t}</h3>
-                  <p>{f.d}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="how" class="sec alt">
-          <div class="wrap">
-            <h2 class="sec-title">كيف نبدأ؟</h2>
-            <div class="steps">
+          {/* ============ الأرقام ============ */}
+          <section class="numbers" aria-label="أرقام المنصة">
+            <div class="wrap nums">
               {[
-                ['1', 'احجز حصة تجريبية', 'عبّي النموذج ونتواصل معك خلال يوم عمل.'],
-                ['2', 'نحدد المستوى', 'نقيّم مستوى الطالب ونختار الفصل المناسب له.'],
-                ['3', 'ابدأ الحصص', 'تستلم حسابك وتدخل حصصك المباشرة من أي جهاز.'],
-                ['4', 'تابع التقدم', 'تسجيلات وواجبات وتقارير مستمرة لولي الأمر.'],
-              ].map(([n, t, d]) => (
-                <div class="step">
-                  <span class="n">{n}</span>
-                  <h3>{t}</h3>
-                  <p>{d}</p>
+                ['14', '+', 'معلمة متخصصة', 'presentation'],
+                ['7', '', 'طلاب كحد أقصى في الفصل', 'users'],
+                ['48', 'س', 'تسجيل متاح لكل حصة', 'clapperboard'],
+                ['96', '%', 'متوسط نسبة الحضور', 'chart-no-axes-combined'],
+              ].map(([v, suf, t, i], k) => (
+                <div class="num-card" data-reveal style={`--d:${k * 80}ms`}>
+                  <span class="nc-ico">
+                    <Icon name={i as IconName} />
+                  </span>
+                  <b>
+                    <span class="num" data-count={v}>
+                      {v}
+                    </span>
+                    <em>{suf}</em>
+                  </b>
+                  <span>{t}</span>
                 </div>
               ))}
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section id="subjects" class="sec">
-          <div class="wrap">
-            <h2 class="sec-title">المواد والمسارات</h2>
-            <div class="chips">
-              {subjects.map((s) => (
-                <span class="chip">{s}</span>
+          {/* ============ المميزات (Bento) ============ */}
+          <section id="features" class="sec" aria-labelledby="f-title">
+            <div class="wrap">
+              <div class="sec-head" data-reveal>
+                <span class="eyebrow">
+                  <Icon name="sparkles" /> لماذا إضاءات
+                </span>
+                <h2 id="f-title">كل اللي يحتاجه الطالب في مكان واحد</h2>
+                <p>صممنا المنصة عشان يركز الطالب على التعلم، والمعلمة على الشرح، وولي الأمر يطمئن.</p>
+              </div>
+              <div class="bento">
+                {features.map((f, k) => (
+                  <article class={`b-card tone-${f.tone}${f.big ? ' big' : ''}`} data-reveal style={`--d:${k * 70}ms`} data-spot>
+                    <span class="b-ico">
+                      <Icon name={f.i} />
+                    </span>
+                    <h3>{f.t}</h3>
+                    <p>{f.d}</p>
+                    {f.i === 'radio-tower' && (
+                      <div class="b-visual live-vis" aria-hidden="true">
+                        {['#5b3df5', '#0d9488', '#db2777', '#c77800', '#2563eb'].map((c, j) => (
+                          <span style={`--c:${c};--j:${j}`}></span>
+                        ))}
+                        <em class="badge live">مباشر</em>
+                      </div>
+                    )}
+                    {f.i === 'users-round' && (
+                      <div class="b-visual report-vis" aria-hidden="true">
+                        {[62, 78, 70, 88, 94].map((h, j) => (
+                          <i style={`--h:${h}%;--j:${j}`}></i>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ============ لمن؟ ============ */}
+          <section class="sec alt" aria-labelledby="who-title">
+            <div class="wrap">
+              <div class="sec-head" data-reveal>
+                <span class="eyebrow">
+                  <Icon name="heart-handshake" /> تجربة لكل طرف
+                </span>
+                <h2 id="who-title">منصة واحدة، ثلاث تجارب مصممة بعناية</h2>
+              </div>
+              <div class="who">
+                {(
+                  [
+                    ['graduation-cap', 'للطالب', 'brand', ['دخول الحصة بضغطة من أي جهاز', 'تسجيلات لما تفوته حصة', 'واجبات وتصحيح وملاحظات']],
+                    ['users-round', 'لولي الأمر', 'teal', ['متابعة الحضور والمستوى', 'أقساط واضحة وتذكير محترم', 'تواصل مباشر مع الإدارة']],
+                    ['presentation', 'للمعلمة', 'pink', ['جدول حصص منظم تلقائياً', 'تسجيل الحصة ورفعها بضغطة', 'مستحقات شفافة أولاً بأول']],
+                  ] as [IconName, string, string, string[]][]
+                ).map(([i, t, tone, pts], k) => (
+                  <div class={`who-card tone-${tone}`} data-reveal style={`--d:${k * 90}ms`}>
+                    <span class="b-ico">
+                      <Icon name={i} />
+                    </span>
+                    <h3>{t}</h3>
+                    <ul class="checks">
+                      {pts.map((p) => (
+                        <Check>{p}</Check>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ============ خطوات البدء ============ */}
+          <section id="how" class="sec" aria-labelledby="how-title">
+            <div class="wrap">
+              <div class="sec-head" data-reveal>
+                <span class="eyebrow">
+                  <Icon name="rocket" /> ٤ خطوات بسيطة
+                </span>
+                <h2 id="how-title">كيف نبدأ؟</h2>
+              </div>
+              <ol class="steps">
+                {steps.map((s, k) => (
+                  <li class="step" data-reveal style={`--d:${k * 100}ms`}>
+                    <span class="step-n" aria-hidden="true">{k + 1}</span>
+                    <span class="b-ico">
+                      <Icon name={s.i} />
+                    </span>
+                    <h3>{s.t}</h3>
+                    <p>{s.d}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+
+          {/* ============ المواد ============ */}
+          <section id="subjects" class="sec alt" aria-labelledby="sub-title">
+            <div class="wrap">
+              <div class="sec-head" data-reveal>
+                <span class="eyebrow">
+                  <Icon name="book-open" /> المسارات
+                </span>
+                <h2 id="sub-title">المواد والمسارات</h2>
+                <p>من التأسيس إلى القدرات والتحصيلي — نغطي أهم المواد لكل المراحل.</p>
+              </div>
+              <div class="subjects">
+                {subjects.map((s, k) => (
+                  <a href="#book" class="subj" data-subject={s.t} data-reveal style={`--d:${k * 45}ms`}>
+                    <span class="b-ico">
+                      <Icon name={s.i} />
+                    </span>
+                    <span>{s.t}</span>
+                    <Icon name="arrow-left" class="go" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ============ الآراء ============ */}
+          <section id="voices" class="sec" aria-labelledby="v-title">
+            <div class="wrap">
+              <div class="sec-head" data-reveal>
+                <span class="eyebrow">
+                  <Icon name="message-square-quote" /> من أهالينا وطلابنا
+                </span>
+                <h2 id="v-title">ثقة نعتز فيها</h2>
+              </div>
+              <div class="voices">
+                {testimonials.map((t, k) => (
+                  <figure class="voice" data-reveal style={`--d:${k * 90}ms`}>
+                    <div class="stars" aria-label="تقييم 5 من 5">
+                      {[0, 1, 2, 3, 4].map(() => (
+                        <Icon name="star" />
+                      ))}
+                    </div>
+                    <blockquote>«{t.q}»</blockquote>
+                    <figcaption>
+                      <span class="av">{t.n.charAt(0) === 'أ' ? t.n.split(' ')[1].charAt(0) : t.n.charAt(0)}</span>
+                      <span>
+                        <b>{t.n}</b>
+                        <small>{t.r}</small>
+                      </span>
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ============ الحجز ============ */}
+          <section id="book" class="sec book" aria-labelledby="book-title">
+            <div class="book-bg" aria-hidden="true">
+              <span class="orb o1"></span>
+              <span class="orb o2"></span>
+              <span class="grid-lines"></span>
+            </div>
+            <div class="wrap book-grid">
+              <div data-reveal>
+                <span class="eyebrow light">
+                  <Icon name="party-popper" /> الحصة الأولى علينا
+                </span>
+                <h2 id="book-title">احجز حصتك التجريبية المجانية</h2>
+                <p>اترك بياناتك وتتواصل معك الإدارة لتحديد موعد الحصة التجريبية ومستوى الطالب.</p>
+                <ul class="checks light">
+                  <Check>بدون أي التزام</Check>
+                  <Check>تقييم مستوى مجاني</Check>
+                  <Check>تجربة المنصة كاملة</Check>
+                </ul>
+                <div class="book-contact">
+                  <span class="b-ico">
+                    <Icon name="clock" />
+                  </span>
+                  <span>
+                    <b>نرد خلال يوم عمل</b>
+                    <small>من الأحد إلى الخميس، ٩ص – ٩م</small>
+                  </span>
+                </div>
+              </div>
+              <form method="post" action="/lead" class="book-form" data-reveal="zoom" style="--d:120ms" id="bookForm">
+                <div class="bf-head">
+                  <span class="b-ico">
+                    <Icon name="calendar-plus" />
+                  </span>
+                  <div>
+                    <b>بيانات الحجز</b>
+                    <small>أقل من دقيقة</small>
+                  </div>
+                </div>
+                {sent === 'ok' && (
+                  <div class="alert ok">
+                    <Icon name="circle-check" />
+                    <div>تم استلام طلبك، بنتواصل معك قريباً بإذن الله.</div>
+                  </div>
+                )}
+                {sent === 'bad' && (
+                  <div class="alert bad">
+                    <Icon name="circle-alert" />
+                    <div>تأكد من الاسم ورقم الجوال (05xxxxxxxx).</div>
+                  </div>
+                )}
+                <div class="field">
+                  <label for="l-name">اسم الطالب</label>
+                  <div class="input-icon">
+                    <Icon name="user" />
+                    <input id="l-name" name="name" required minlength={2} maxlength={80} autocomplete="name" placeholder="الاسم الثلاثي" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="l-phone">جوال ولي الأمر</label>
+                  <div class="input-icon">
+                    <Icon name="phone" />
+                    <input id="l-phone" name="phone" required inputmode="tel" dir="ltr" placeholder="05xxxxxxxx" autocomplete="tel" pattern="0?5[0-9]{8}|(\+?966)5[0-9]{8}" />
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="l-grade">المرحلة</label>
+                    <select id="l-grade" name="grade">
+                      {['ابتدائي', 'متوسط', 'ثانوي', 'جامعي', 'أخرى'].map((g) => (
+                        <option>{g}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="l-sub">المادة</label>
+                    <select id="l-sub" name="subject">
+                      {subjects.map((s) => (
+                        <option>{s.t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <input type="text" name="website" class="sr-only" tabindex={-1} autocomplete="off" aria-hidden="true" />
+                <button class="btn btn-shine btn-xl btn-block">
+                  أرسل الطلب <Icon name="send" class="flip" />
+                </button>
+                <p class="bf-note">
+                  <Icon name="lock" /> بياناتك لا تُشارك مع أي طرف.
+                </p>
+              </form>
+            </div>
+          </section>
+
+          {/* ============ الأسئلة ============ */}
+          <section id="faq" class="sec" aria-labelledby="faq-title">
+            <div class="wrap narrow">
+              <div class="sec-head" data-reveal>
+                <span class="eyebrow">
+                  <Icon name="circle-help" /> عندك سؤال؟
+                </span>
+                <h2 id="faq-title">أسئلة شائعة</h2>
+              </div>
+              {faqs.map((f, k) => (
+                <details class="drop faq" data-reveal style={`--d:${k * 60}ms`}>
+                  <summary>{f.q}</summary>
+                  <div>{f.a}</div>
+                </details>
               ))}
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section id="book" class="sec book">
-          <div class="wrap book-grid">
-            <div>
-              <h2>احجز حصتك التجريبية المجانية</h2>
-              <p>اترك بياناتك وتتواصل معك الإدارة لتحديد موعد الحصة التجريبية ومستوى الطالب.</p>
-              <ul class="checks">
-                <li>بدون أي التزام</li>
-                <li>تقييم مستوى مجاني</li>
-                <li>تجربة المنصة كاملة</li>
-              </ul>
+          {/* ============ دعوة أخيرة ============ */}
+          <section class="final" aria-label="ابدأ الآن">
+            <div class="wrap">
+              <div class="final-card" data-reveal="zoom">
+                <div>
+                  <h2>جاهز تشوف الفرق بنفسك؟</h2>
+                  <p>الحصة التجريبية مجانية بالكامل — جرّب المنصة والمعلمة والفصل قبل أي قرار.</p>
+                </div>
+                <a href="#book" class="btn btn-shine btn-xl" data-magnet>
+                  احجز الآن <Icon name="arrow-left" />
+                </a>
+              </div>
             </div>
-            <form method="post" action="/lead" class="card book-form">
-              {sent === 'ok' && <div class="alert ok">تم استلام طلبك ✅ بنتواصل معك قريباً بإذن الله.</div>}
-              {sent === 'bad' && <div class="alert bad">تأكد من الاسم ورقم الجوال (05xxxxxxxx).</div>}
-              <div class="field">
-                <label for="l-name">اسم الطالب</label>
-                <input id="l-name" name="name" required maxlength={80} autocomplete="name" />
-              </div>
-              <div class="field">
-                <label for="l-phone">جوال ولي الأمر</label>
-                <input id="l-phone" name="phone" required inputmode="tel" dir="ltr" placeholder="05xxxxxxxx" autocomplete="tel" />
-              </div>
-              <div class="form-grid">
-                <div class="field">
-                  <label for="l-grade">الصف</label>
-                  <select id="l-grade" name="grade">
-                    {['ابتدائي', 'متوسط', 'ثانوي', 'جامعي', 'أخرى'].map((g) => (
-                      <option>{g}</option>
-                    ))}
-                  </select>
-                </div>
-                <div class="field">
-                  <label for="l-sub">المادة</label>
-                  <select id="l-sub" name="subject">
-                    {subjects.map((s) => (
-                      <option>{s}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <input type="text" name="website" class="sr-only" tabindex={-1} autocomplete="off" aria-hidden="true" />
-              <button class="btn btn-accent btn-lg btn-block">أرسل الطلب</button>
-            </form>
-          </div>
-        </section>
-
-        <section id="faq" class="sec">
-          <div class="wrap narrow">
-            <h2 class="sec-title">أسئلة شائعة</h2>
-            {faqs.map((f) => (
-              <details class="drop">
-                <summary>{f.q}</summary>
-                <div>{f.a}</div>
-              </details>
-            ))}
-          </div>
-        </section>
+          </section>
+        </main>
 
         <footer class="l-foot">
-          <div class="wrap flex between">
-            <div class="l-brand">
-              <span class="logo">إ</span> إضاءات
+          <div class="wrap foot-grid">
+            <div>
+              <a href="/" class="l-brand">
+                <Logo size={34} />
+                <span>إضاءات</span>
+              </a>
+              <p>دروس تقوية مباشرة بفصول صغيرة، تسجيلات محمية، وواجبات ومتابعة — في منصة واحدة.</p>
             </div>
+            <nav aria-label="روابط">
+              <b>المنصة</b>
+              <a href="#features">المميزات</a>
+              <a href="#how">كيف نبدأ</a>
+              <a href="#faq">الأسئلة</a>
+            </nav>
+            <nav aria-label="حسابي">
+              <b>حسابي</b>
+              <a href="/login">تسجيل الدخول</a>
+              <a href="#book">حجز حصة تجريبية</a>
+            </nav>
+          </div>
+          <div class="wrap foot-bottom">
             <small>© {new Date().getFullYear()} منصة إضاءات التعليمية — جميع الحقوق محفوظة</small>
+            <small class="made">
+              صُنع بـ <Icon name="heart" /> للتعليم
+            </small>
           </div>
         </footer>
-        <a href="#book" class="float-cta">احجز حصة مجانية</a>
+
+        <a href="#book" class="float-cta" id="floatCta">
+          <Icon name="calendar-plus" /> احجز حصة مجانية
+        </a>
+        <div class="scroll-progress" id="scrollProgress" aria-hidden="true"></div>
+        <script src={`/static/app.js?v=${ASSET_V}`} defer></script>
+        <script src={`/static/landing.js?v=${ASSET_V}`} defer></script>
       </body>
     </html>
   )
 }
-
-const LANDING_CSS = `
-.landing{background:#fff}
-.wrap{max-width:1180px;margin:0 auto;padding:0 1.25rem}.narrow{max-width:780px}
-.l-nav{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:.7rem 0}
-.l-brand{display:flex;align-items:center;gap:.55rem;font-weight:800;font-size:1.25rem;color:var(--ink);text-decoration:none!important}
-.l-links{display:flex;gap:1.6rem}.l-links a{color:var(--ink-2);font-weight:600}
-.hero{background:radial-gradient(900px 500px at 90% -10%,#e7e1ff,transparent),radial-gradient(700px 420px at 0% 110%,#fff0d2,transparent);padding:3.5rem 0 4rem;overflow:hidden}
-.hero-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:3rem;align-items:center}
-.pill{display:inline-block;background:#fff;border:1px solid #e3ddff;color:var(--brand);font-weight:700;font-size:.85rem;padding:.3rem .9rem;border-radius:99px;margin-bottom:1rem}
-.hero h1{font-size:clamp(2rem,4.4vw,3.2rem);font-weight:800;line-height:1.3;margin-bottom:1rem}
-.hl{background:linear-gradient(90deg,var(--brand),#9b5cff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.lead{font-size:1.12rem;color:var(--ink-2);max-width:560px;margin-bottom:1.6rem}
-.trust{display:flex;gap:2rem;margin-top:2rem;flex-wrap:wrap}.trust div{display:flex;flex-direction:column}.trust b{font-size:1.6rem;color:var(--brand);direction:ltr;text-align:right}.trust span{color:var(--muted);font-size:.88rem}
-.mock{background:#14173a;border-radius:22px;box-shadow:var(--shadow-lg);padding:1rem;color:#fff;transform:rotate(-1.5deg)}
-.mock-top{display:flex;gap:.7rem;align-items:center;padding:.2rem .3rem .8rem;font-size:.9rem}
-.mock-stage{display:grid;grid-template-columns:1fr 120px;gap:.7rem}
-.board{background:linear-gradient(160deg,#1f5a4a,#17443a);border-radius:14px;min-height:230px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:.6rem;border:6px solid #6b4a2b}
-.eq{font-size:1.5rem;font-weight:700;color:#f3f7e9}.eq.sm{font-size:1.1rem;color:#ffe08a}
-.tiles{display:grid;gap:.5rem}.tile{border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.4rem;min-height:52px}
-.tile span{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;font-weight:800}.tile small{font-size:.68rem;opacity:.85}
-.t0{background:#5b3df5}.t1{background:#10b3a3}.t2{background:#e5484d}.t3{background:#d98b00}
-.mock-bar{display:flex;gap:.6rem;justify-content:center;padding-top:.8rem}.mock-bar span{background:rgba(255,255,255,.1);border-radius:10px;padding:.35rem .7rem}.mock-bar .end{background:#e5484d}
-.sec{padding:4.5rem 0}.sec.alt{background:var(--bg)}
-.sec-title{text-align:center;font-size:clamp(1.5rem,3vw,2.1rem);font-weight:800}
-.sec-sub{text-align:center;color:var(--muted);max-width:620px;margin:0 auto 2.5rem}
-.f-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.25rem}
-.f-card{border:1px solid var(--line);border-radius:18px;padding:1.5rem;transition:.2s;background:#fff}.f-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:#dcd4ff}
-.f-ico{width:54px;height:54px;border-radius:14px;background:var(--brand-50);display:grid;place-items:center;font-size:1.6rem;margin-bottom:1rem}
-.f-card p{color:var(--ink-2);margin:0}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1.25rem;margin-top:2rem}
-.step{background:#fff;border-radius:18px;padding:1.5rem;border:1px solid var(--line)}.step .n{width:40px;height:40px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:800;margin-bottom:.8rem}.step p{color:var(--ink-2);margin:0}
-.chips{display:flex;flex-wrap:wrap;gap:.7rem;justify-content:center;margin-top:1.5rem}.chip{padding:.6rem 1.2rem;border-radius:99px;background:var(--brand-50);color:var(--brand);font-weight:700}
-.book{background:linear-gradient(135deg,#2a1d8f,#5b3df5);color:#fff}
-.book-grid{display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center}.book h2{font-size:2rem}.book p{color:#dcd6ff;font-size:1.05rem}
-.checks{list-style:none;padding:0}.checks li{padding:.3rem 0}.checks li::before{content:'✓';background:var(--accent);color:#2b1a00;border-radius:50%;width:22px;height:22px;display:inline-grid;place-items:center;margin-left:.6rem;font-weight:800;font-size:.8rem}
-.book-form{color:var(--ink);margin:0;box-shadow:var(--shadow-lg)}
-.l-foot{padding:2rem 0;border-top:1px solid var(--line)}
-.float-cta{display:none}
-@media(max-width:900px){.hero-grid,.book-grid{grid-template-columns:1fr}.mock{transform:none}.hero{padding:2rem 0 3rem}.sec{padding:3rem 0}
-.float-cta{display:block;position:fixed;bottom:1rem;inset-inline:1rem;z-index:40;text-align:center;background:var(--accent);color:#2b1a00;font-weight:800;padding:.9rem;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.2);text-decoration:none!important}
-.l-foot{padding-bottom:5rem}}
-`

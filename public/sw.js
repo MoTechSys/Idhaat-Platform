@@ -1,8 +1,8 @@
 // Service Worker بسيط: يجعل المنصة قابلة للتثبيت كتطبيق (PWA) ويخزن الملفات الثابتة فقط.
 // لا يخزن الصفحات ولا التسجيلات أبداً (خصوصية + حماية المحتوى).
-const CACHE = 'edaat-static-v1'
+const CACHE = 'edaat-static-v4'
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/static/app.css?v=1', '/static/app.js?v=1', '/static/icon.svg'])))
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/static/app.css?v=4', '/static/app.js?v=4', '/static/landing.css?v=4', '/static/landing.js?v=4', '/static/icon.svg'])))
   self.skipWaiting()
 })
 self.addEventListener('activate', (e) => {
