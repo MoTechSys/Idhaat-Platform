@@ -16,7 +16,7 @@ list-checks refresh-cw external-link copy key-round door-open smartphone laptop 
 filter archive file-down sliders-horizontal globe book-marked brain calculator atom flask-conical languages pen-tool school
 party-popper circle-help message-square-quote shield eye-off fingerprint scan-face wand-sparkles
 panel-right-close panel-right-open ellipsis layout-grid circle-plus chevron-up user-round-plus file-plus receipt-text wallet-cards bell-dot
-rewind monitor-smartphone hand-heart heart-handshake award mouse-pointer-click chart-no-axes-combined sigma
+rewind message-square arrow-up monitor-smartphone hand-heart heart-handshake award mouse-pointer-click chart-no-axes-combined sigma
 `.trim().split(/\s+/)
 
 const out = {}

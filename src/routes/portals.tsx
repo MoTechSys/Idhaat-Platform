@@ -6,16 +6,20 @@ import { courseFinances, installmentStates } from '../lib/finance'
 import { formatSAR } from '../lib/money'
 import { lessonsFor, recordingsFor } from '../lib/queries'
 import { page } from '../lib/render'
-import { fmtDate, fmtDateTime, fmtRemaining, nowSec } from '../lib/time'
+import { fmtDate, fmtDateTime, fmtRemaining, fmtTime, nowSec } from '../lib/time'
 import type { AppEnv } from '../lib/types'
-import { Empty, Money, PageHead, Pager, Stat } from '../views/layout'
+import { Empty, firstName, Money, PageHead, Pager, Stat } from '../views/layout'
 import { paginate } from '../lib/paging'
-import { Icon, IconTile } from '../views/icons'
+import { Icon } from '../views/icons'
 import { assignmentsPage } from './assignments'
-import { LessonItem } from './lessons'
+import { LessonCard, LessonItem } from './lessons'
 import { recordingsPage } from './recordings'
 
 export const portalRoutes = new Hono<AppEnv>()
+
+/** تحية حسب ساعة الرياض */
+const greeting = (now: number) => (Math.floor(((now + 3 * 3600) % 86400) / 3600) < 12 ? 'صباح الخير' : 'مساء الخير')
+const hm = (sec: number) => fmtTime(sec).replace(/\s?[صم]$/, '')
 
 // ============ المعلمة ============
 portalRoutes.get('/teacher', requireRole('teacher'), async (c) => {
@@ -39,53 +43,76 @@ portalRoutes.get('/teacher', requireRole('teacher'), async (c) => {
     c,
     'الرئيسية',
     <>
-      <PageHead title={`أهلاً، أ. ${user.name.split(' ')[0]}`} sub={fmtDateTime(now)} />
-      {liveNow && (
-        <div class="card card-live">
-          <div class="card-head">
-            <h2><Icon name="radio" /> {lessonPhase(liveNow, now) === 'live' ? 'حصتك جارية الآن' : 'حصتك تبدأ خلال دقائق'}</h2>
-          </div>
-          <div class="list">
-            <LessonItem l={liveNow} now={now} user={user} />
-          </div>
+      <div class="hello">
+        <div>
+          <h1>
+            {greeting(now)}، <br class="m-br" />
+            <b>أ. {firstName(user.name)}</b>
+          </h1>
+          <p>
+            {today.length ? `عندك ${today.length} حصص اليوم` : 'لا حصص متبقية اليوم'}
+            {pendingGrading?.n ? `، و${pendingGrading.n} تسليمات بانتظار التصحيح.` : '.'}
+          </p>
         </div>
-      )}
-      <div class="stats">
-        <Stat href="/lessons" label="حصص اليوم" value={<span class="num">{today.length}</span>} sub={`${active.length} هذا الأسبوع`} tone="teal" />
-        <Stat href="/teacher/assignments" label="بانتظار التصحيح" value={<span class="num">{pendingGrading?.n ?? 0}</span>} tone={pendingGrading?.n ? 'warn' : undefined} />
-        <Stat label="طلابي" value={<span class="num">{students}</span>} sub={`${fins.length} دورة`} tone="ok" />
-        <Stat href="/teacher/earnings" label="مستحقاتي المتبقية" value={<Money v={balance} />} tone="info" />
+        <div class="actions btns">
+          <a class="btn btn-ghost" href="/teacher/assignments#new">
+            <Icon name="plus" /> واجب جديد
+          </a>
+          <a class="btn" href="/lessons#new">
+            <Icon name="calendar-days" /> جدولة حصة
+          </a>
+        </div>
       </div>
-      <div class="quick">
-        <a href="/lessons#new"><IconTile name="calendar-plus" tone="brand" size="sm" /> جدولة حصة</a>
-        <a href="/teacher/assignments#new"><IconTile name="file-plus" tone="teal" size="sm" /> واجب جديد</a>
-        <a href="/teacher/recordings"><IconTile name="clapperboard" tone="info" size="sm" /> التسجيلات</a>
-        <a href="/messages"><IconTile name="messages-square" tone="pink" size="sm" /> الرسائل</a>
+      {liveNow && (
+        <section class="panel card-live mt" aria-labelledby="tLive">
+          <h2 id="tLive">
+            <span class="live-dot" aria-hidden="true"></span>
+            {lessonPhase(liveNow, now) === 'live' ? 'حصتك جارية الآن' : 'حصتك تبدأ خلال دقائق'}
+          </h2>
+          <a class="ls" href={`/lessons/${liveNow.id}`}>
+            <span class="tm num">{hm(liveNow.starts_at)}</span>
+            <div class="grow">
+              <b>{liveNow.title}</b>
+              <small>
+                {liveNow.course_title} · {liveNow.provider === 'zoom' ? liveNow.room_name : 'بث المنصة'} · {liveNow.students} طالب
+              </small>
+            </div>
+            <span class="btn btn-sm on-panel">{lessonPhase(liveNow, now) === 'live' ? 'العودة' : 'ابدأ'}</span>
+          </a>
+        </section>
+      )}
+      <div class="stats mt">
+        <Stat href="/lessons" label="حصص اليوم" value={<span class="num">{today.length}</span>} sub={`${active.length} هذا الأسبوع`} />
+        <Stat href="/teacher/assignments" label="بانتظار التصحيح" value={<span class="num">{pendingGrading?.n ?? 0}</span>} tone={pendingGrading?.n ? 'warn' : undefined} />
+        <Stat label="طلابي" value={<span class="num">{students}</span>} sub={`${fins.length} دورة`} />
+        <Stat href="/teacher/earnings" label="مستحقاتي المتبقية" value={<Money v={balance} whole />} />
       </div>
       <div class="sec-title">
         <h2><Icon name="calendar-days" /> حصصي القادمة</h2>
         <a href="/lessons">الجدول الكامل</a>
       </div>
-      <div class="list">
+      <div class="lcards">
         {active.filter((l) => l !== liveNow).length ? (
           active
             .filter((l) => l !== liveNow)
-            .slice(0, 5)
-            .map((l) => <LessonItem l={l} now={now} user={user} />)
+            .slice(0, 6)
+            .map((l) => <LessonCard l={l} now={now} user={user} />)
         ) : (
-          <Empty icon="calendar-days" text="لا توجد حصص مجدولة هذا الأسبوع.">
-            <a class="btn btn-soft" href="/lessons#new">
-              جدولة حصة
-            </a>
-          </Empty>
-        )}
-        {active.length > 6 && (
-          <a class="list-more" href="/lessons">
-            عرض كل حصص الأسبوع ({active.length}) <Icon name="chevron-left" />
-          </a>
+          <div class="card">
+            <Empty icon="calendar-days" text="لا توجد حصص مجدولة هذا الأسبوع.">
+              <a class="btn btn-soft" href="/lessons#new">
+                جدولة حصة
+              </a>
+            </Empty>
+          </div>
         )}
       </div>
-      <details class="drop">
+      {active.length > 7 && (
+        <a class="btn btn-ghost btn-block" href="/lessons">
+          عرض كل حصص الأسبوع ({active.length})
+        </a>
+      )}
+      <details class="drop faq mt">
         <summary>طريقة تسجيل الحصة</summary>
         <div class="muted" style="font-size:.88rem">
           في غرفة الحصة اضغطي «ابدأ التسجيل» واختاري «هذا التبويب» مع تفعيل «مشاركة صوت التبويب». التسجيل يُرفع تلقائياً أثناء الحصة ويظهر للطلاب 48 ساعة. لحصص الزوم: سجّلي على الجهاز ثم ارفعي الملف من صفحة الحصة.
@@ -207,9 +234,17 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
     c,
     'الرئيسية',
     <>
-      <PageHead title={`أهلاً، ${user.name.split(' ')[0]}`} sub={live.length ? 'عندك حصة الآن' : next.length ? `حصتك القادمة ${fmtDateTime(next[0].starts_at)}` : 'لا توجد حصص قادمة هذا الأسبوع'} />
+      <div class="hello">
+        <div>
+          <h1>
+            {greeting(now)}، <br class="m-br" />
+            <b>{firstName(user.name)}</b>
+          </h1>
+          <p>{live.length ? 'عندك حصة الآن.' : next.length ? `حصتك القادمة ${fmtDateTime(next[0].starts_at)}` : 'لا توجد حصص قادمة هذا الأسبوع'}</p>
+        </div>
+      </div>
       {overdue.length > 0 && (
-        <div class="alert warn flex">
+        <div class="alert warn flex mt">
           <Icon name="credit-card" />
           <span>
             عليك قسط متأخر بقيمة <b>{formatSAR(overdue.reduce((s, i) => s + i.remaining, 0))}</b>
@@ -220,22 +255,27 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
         </div>
       )}
       {live.length > 0 && (
-        <div class="card card-live">
-          <div class="card-head">
-            <h2><Icon name="radio" /> حصتك الآن</h2>
-          </div>
-          <div class="list">
-            {live.map((l) => (
-              <LessonItem l={l} now={now} user={user} />
-            ))}
-          </div>
-        </div>
+        <section class="panel card-live mt" aria-labelledby="sLive">
+          <h2 id="sLive">
+            <span class="live-dot" aria-hidden="true"></span>حصتك الآن
+          </h2>
+          {live.map((l) => (
+            <a class="ls" href={`/lessons/${l.id}`}>
+              <span class="tm num">{hm(l.starts_at)}</span>
+              <div class="grow">
+                <b>{l.title}</b>
+                <small>{[l.teacher_name, l.course_title, l.provider === 'zoom' ? l.room_name : 'بث المنصة'].filter(Boolean).join(' · ')}</small>
+              </div>
+              <span class="btn btn-sm on-panel">انضمام</span>
+            </a>
+          ))}
+        </section>
       )}
-      <div class="stats">
-        <Stat label="حصص هذا الأسبوع" value={<span class="num">{active.length}</span>} tone="teal" />
-        <Stat href="/student/assignments" label="واجبات مطلوبة" value={<span class="num">{asg.results.length}</span>} tone={asg.results.length ? 'warn' : 'ok'} />
-        <Stat href="/student/recordings" label="تسجيلات متاحة" value={<span class="num">{recs.length}</span>} tone="info" />
-        <Stat href="/student/payments" label="المتبقي عليّ" value={<Money v={insts.reduce((s, i) => s + i.remaining, 0)} />} tone={overdue.length ? 'bad' : 'ok'} />
+      <div class="stats mt">
+        <Stat label="حصص هذا الأسبوع" value={<span class="num">{active.length}</span>} />
+        <Stat href="/student/assignments" label="واجبات مطلوبة" value={<span class="num">{asg.results.length}</span>} tone={asg.results.length ? 'warn' : undefined} />
+        <Stat href="/student/recordings" label="تسجيلات متاحة" value={<span class="num">{recs.length}</span>} />
+        <Stat href="/student/payments" label="المتبقي عليّ" value={<Money v={insts.reduce((s, i) => s + i.remaining, 0)} whole />} tone={overdue.length ? 'bad' : undefined} />
       </div>
       <div class="grid grid-main">
         <section>
@@ -243,7 +283,7 @@ portalRoutes.get('/student', requireRole('student'), async (c) => {
             <h2><Icon name="calendar-days" /> حصصي القادمة</h2>
           </div>
           <div class="list">
-            {next.length ? next.slice(0, 5).map((l) => <LessonItem l={l} now={now} user={user} />) : <Empty icon="calendar-days" text="لا توجد حصص قادمة هذا الأسبوع." />}
+            {next.length ? next.slice(0, 5).map((l) => <LessonItem l={l} now={now} user={user} compact />) : <Empty icon="calendar-days" text="لا توجد حصص قادمة هذا الأسبوع." />}
           </div>
         </section>
         <section>
