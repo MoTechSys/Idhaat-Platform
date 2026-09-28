@@ -101,7 +101,7 @@ export async function assignmentsPage(c: Context<AppEnv>) {
     <>
       <PageHead title="الواجبات" sub={isStaff ? 'أنشئي الواجبات وتابعي التسليم والتصحيح' : `لديك ${pending.length} واجب بانتظار التسليم`} />
       {isStaff && courses.length > 0 && (
-        <details class="drop">
+        <details class="drop" id="new">
           <summary>واجب جديد</summary>
           <div>
             <form method="post" action="/assignments" enctype="multipart/form-data">

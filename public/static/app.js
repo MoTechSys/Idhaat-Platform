@@ -2,27 +2,96 @@
 const $ = (s, r = document) => r.querySelector(s)
 const $$ = (s, r = document) => [...r.querySelectorAll(s)]
 
-// ---- القائمة الجانبية (جوال) ----
-const side = $('#side'), backdrop = $('#backdrop'), menuBtn = $('#menuBtn')
+// ---- الدرج الجانبي (جوال) ----
+const side = $('#side'), scrim = $('#backdrop'), menuBtn = $('#menuBtn')
 const toggleMenu = (open) => {
   side?.classList.toggle('open', open)
-  backdrop?.classList.toggle('show', open)
+  scrim?.classList.toggle('show', open)
   menuBtn?.setAttribute('aria-expanded', String(open))
-  document.body.style.overflow = open ? 'hidden' : ''
+  if (open) side?.querySelector('a.nav-item.on, a.nav-item')?.focus({ preventScroll: true })
 }
 menuBtn?.addEventListener('click', () => toggleMenu(!side.classList.contains('open')))
-backdrop?.addEventListener('click', () => toggleMenu(false))
-document.addEventListener('keydown', (e) => e.key === 'Escape' && toggleMenu(false))
+scrim?.addEventListener('click', () => { toggleMenu(false); closeAcct() })
+// سحب الدرج لإغلاقه (إيماءة Android)
+let sx = null
+side?.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX }, { passive: true })
+side?.addEventListener('touchend', (e) => { if (sx !== null && e.changedTouches[0].clientX - sx > 60) toggleMenu(false); sx = null })
+
+// ---- طي القائمة إلى شريط أيقونات (سطح المكتب) ----
+const navToggle = $('#navToggle')
+const syncRail = () => {
+  const rail = document.documentElement.dataset.nav === 'rail'
+  navToggle?.setAttribute('aria-pressed', String(rail))
+  navToggle?.setAttribute('aria-label', rail ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية')
+  navToggle?.setAttribute('title', rail ? 'توسيع القائمة' : 'طي القائمة')
+}
+syncRail()
+navToggle?.addEventListener('click', () => {
+  const rail = document.documentElement.dataset.nav !== 'rail'
+  if (rail) document.documentElement.dataset.nav = 'rail'
+  else delete document.documentElement.dataset.nav
+  try { localStorage.setItem('nav', rail ? 'rail' : 'full') } catch {}
+  syncRail()
+})
+
+// ---- قائمة الحساب (منبثقة على سطح المكتب، ورقة سفلية على الجوال) ----
+const acctBtn = $('#acctBtn'), acctMenu = $('#acctMenu')
+const isSheet = () => matchMedia('(max-width: 599px)').matches
+function openAcct() {
+  if (!acctMenu) return
+  acctMenu.hidden = false
+  acctBtn?.setAttribute('aria-expanded', 'true')
+  if (isSheet()) scrim?.classList.add('show')
+  $('[role=menuitem]', acctMenu)?.focus({ preventScroll: true })
+}
+function closeAcct() {
+  if (!acctMenu || acctMenu.hidden) return
+  acctMenu.hidden = true
+  acctBtn?.setAttribute('aria-expanded', 'false')
+  if (!side?.classList.contains('open')) scrim?.classList.remove('show')
+}
+acctBtn?.addEventListener('click', (e) => { e.stopPropagation(); acctMenu.hidden ? openAcct() : closeAcct() })
+document.addEventListener('click', (e) => { if (acctMenu && !acctMenu.hidden && !acctMenu.contains(e.target)) closeAcct() })
+acctMenu?.addEventListener('keydown', (e) => {
+  const items = $$('[role=menuitem]', acctMenu)
+  const i = items.indexOf(document.activeElement)
+  if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus() }
+  if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
+})
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleMenu(false); if (acctMenu && !acctMenu.hidden) { closeAcct(); acctBtn?.focus() } } })
 
 // ---- الوضع الليلي ----
-$('#themeBtn')?.addEventListener('click', () => {
+const toggleTheme = () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
   const apply = () => {
     document.documentElement.dataset.theme = next
     try { localStorage.setItem('theme', next) } catch {}
   }
   document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches ? document.startViewTransition(apply) : apply()
+}
+$('#themeBtn')?.addEventListener('click', toggleTheme)
+$$('[data-theme-toggle]').forEach((b) => b.addEventListener('click', () => { toggleTheme(); closeAcct() }))
+
+// ---- فتح نموذج الإضافة عبر الرابط (#new) — مثل زر «جدولة حصة» ----
+const openNew = () => {
+  if (location.hash !== '#new') return
+  const d = document.getElementById('new')
+  if (d?.tagName === 'DETAILS') { d.open = true; d.scrollIntoView({ block: 'start' }); d.querySelector('input:not([type=hidden]), select, textarea')?.focus({ preventScroll: true }) }
+}
+openNew()
+addEventListener('hashchange', openNew)
+
+// ---- صفوف قابلة للنقر بالكامل (data-href) مع بقاء الأزرار الداخلية تعمل ----
+document.addEventListener('click', (e) => {
+  const row = e.target.closest('[data-href]')
+  if (!row || e.target.closest('a, button, input, select, textarea, label, form')) return
+  location.href = row.dataset.href
 })
+
+// ---- إخفاء العنوان المكرر على الجوال (شريط التطبيق يعرض اسم الصفحة) ----
+const leaf = $('.crumb-leaf')?.textContent.trim()
+const h1 = $('.page-head h1')
+if (leaf && h1 && h1.textContent.trim() === leaf) h1.closest('.page-head').classList.add('dup')
 
 // ---- الإشعارات المنبثقة ----
 const dismiss = (t) => { t.classList.add('out'); setTimeout(() => t.remove(), 250) }

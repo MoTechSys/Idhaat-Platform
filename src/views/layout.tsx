@@ -2,8 +2,9 @@ import type { Child } from 'hono/jsx'
 import type { SessionUser } from '../lib/types'
 import { pageHref, pageWindow, type PageInfo } from '../lib/paging'
 import { Icon, IconTile, type IconName, type Tone } from './icons'
+import { resolveNav } from './nav'
 
-export const ASSET_V = '4'
+export const ASSET_V = '5'
 
 /** يمنع وميض الثيم: يُطبَّق قبل رسم الصفحة (مفضّل المستخدم ⇐ إعداد النظام) */
 const THEME_BOOT = `(function(){try{var t=localStorage.getItem('theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch(e){}})()`
@@ -16,8 +17,8 @@ export function Head({ title, description, noindex }: { title: string; descripti
       <title>{title}</title>
       {description && <meta name="description" content={description} />}
       {noindex && <meta name="robots" content="noindex" />}
-      <meta name="theme-color" content="#5b3df5" media="(prefers-color-scheme: light)" />
-      <meta name="theme-color" content="#0b0d1f" media="(prefers-color-scheme: dark)" />
+      <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+      <meta name="theme-color" content="#101114" media="(prefers-color-scheme: dark)" />
       <meta name="color-scheme" content="light dark" />
       <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       <link rel="manifest" href="/manifest.webmanifest" />
@@ -43,64 +44,10 @@ export const Logo = ({ size = 38 }: { size?: number }) => (
   </span>
 )
 
-export interface NavItem {
-  href: string
-  label: string
-  icon: IconName
-  count?: number
-  sep?: string
-  mobile?: boolean
-}
-
-export function navFor(user: SessionUser, unread = 0): NavItem[] {
-  if (user.role === 'admin')
-    return [
-      { href: '/admin', label: 'الرئيسية', icon: 'layout-dashboard', mobile: true },
-      { href: '/admin/live', label: 'الحصص الآن', icon: 'radio', mobile: true },
-      { href: '/lessons', label: 'جدول الحصص', icon: 'calendar-days' },
-      { sep: 'التعليم', href: '/admin/courses', label: 'الدورات', icon: 'book-open' },
-      { href: '/admin/users?role=teacher', label: 'المعلمات', icon: 'presentation' },
-      { href: '/admin/users?role=student', label: 'الطلاب', icon: 'graduation-cap' },
-      { href: '/admin/assignments', label: 'الواجبات', icon: 'notebook-pen' },
-      { href: '/admin/recordings', label: 'التسجيلات', icon: 'clapperboard' },
-      { href: '/admin/rooms', label: 'قاعات الزوم', icon: 'video' },
-      { href: '/admin/leads', label: 'طلبات التسجيل', icon: 'inbox' },
-      { sep: 'المالية', href: '/admin/finance', label: 'لوحة المالية', icon: 'wallet', mobile: true },
-      { href: '/admin/finance/installments', label: 'الأقساط والمتابعة', icon: 'calendar-clock' },
-      { href: '/admin/finance/payouts', label: 'المستحقات', icon: 'hand-coins' },
-      { href: '/admin/finance/expenses', label: 'المصروفات', icon: 'receipt' },
-      { href: '/admin/partners', label: 'الجهات', icon: 'building-2' },
-      { sep: 'التواصل', href: '/messages', label: 'الرسائل', icon: 'messages-square', count: unread, mobile: true },
-    ]
-  if (user.role === 'teacher')
-    return [
-      { href: '/teacher', label: 'الرئيسية', icon: 'layout-dashboard', mobile: true },
-      { href: '/lessons', label: 'حصصي', icon: 'calendar-days', mobile: true },
-      { href: '/teacher/assignments', label: 'الواجبات', icon: 'notebook-pen', mobile: true },
-      { href: '/teacher/recordings', label: 'التسجيلات', icon: 'clapperboard' },
-      { href: '/teacher/earnings', label: 'مستحقاتي', icon: 'banknote' },
-      { href: '/messages', label: 'الرسائل', icon: 'messages-square', count: unread, mobile: true },
-    ]
-  return [
-    { href: '/student', label: 'الرئيسية', icon: 'house', mobile: true },
-    { href: '/student/recordings', label: 'التسجيلات', icon: 'circle-play', mobile: true },
-    { href: '/student/assignments', label: 'الواجبات', icon: 'notebook-pen', mobile: true },
-    { href: '/student/payments', label: 'مدفوعاتي', icon: 'credit-card' },
-    { href: '/messages', label: 'الرسائل', icon: 'messages-square', count: unread, mobile: true },
-  ]
-}
-
 export const roleLabel = { admin: 'الإدارة', teacher: 'معلمة', student: 'طالب' } as const
 
-function isActive(href: string, path: string, search: string) {
-  const [clean, q] = href.split('?')
-  if (q) return path === clean && search.includes(q)
-  if (['/admin', '/teacher', '/student'].includes(clean)) return path === clean
-  return path === clean || path.startsWith(clean + '/')
-}
-
 /** لون ثابت للصورة الرمزية حسب الاسم (يسهّل التمييز بين الأشخاص) */
-const AV_COLORS = ['#5b3df5', '#0d9488', '#db2777', '#2563eb', '#c77800', '#7c3aed', '#0f9d58', '#e5484d']
+const AV_COLORS = ['#3d4db7', '#0b7a75', '#a8326e', '#1f6fb2', '#a35a00', '#5b4bb3', '#2f7d4f', '#b3403a']
 export function avatarColor(name: string) {
   let h = 0
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0
@@ -143,6 +90,20 @@ export const Person = ({ id, name, v, sub, href }: { id: number; name: string; v
   </div>
 )
 
+/** الإجراء الأساسي لكل دور (زر بارز أعلى القائمة الجانبية) */
+const primaryAction = (role: SessionUser['role']): { href: string; label: string; icon: IconName } | null =>
+  role === 'student' ? null : { href: '/lessons#new', label: 'جدولة حصة', icon: 'calendar-plus' }
+
+/** يمنع وميض حالة القائمة (مطوية/كاملة) قبل الرسم */
+const NAV_BOOT = `try{if(localStorage.getItem('nav')==='rail')document.documentElement.dataset.nav='rail'}catch(e){}`
+
+/**
+ * هيكل التطبيق (App Shell):
+ *  - سطح المكتب ≥ 1024px: قائمة جانبية ثابتة قابلة للطي إلى شريط أيقونات (Rail)، وشريط عنوان، وتبويبات القسم.
+ *  - اللوحي 600–1023px: شريط أيقونات دائم (Navigation Rail).
+ *  - الجوال < 600px: شريط تطبيق علوي + شريط تنقل سفلي (Navigation Bar) + زر إجراء عائم، والقائمة الكاملة كدرج.
+ * الإطار ثابت ولا يتحرك؛ المحتوى وحده يتمرر.
+ */
 export function AppLayout(props: {
   title: string
   user: SessionUser
@@ -154,93 +115,164 @@ export function AppLayout(props: {
   scripts?: string[]
   demo?: boolean
 }) {
-  const nav = navFor(props.user, props.unread ?? 0)
-  const search = props.search ?? ''
-  const current = nav.find((n) => isActive(n.href, props.path, search))
+  const { sections, section, tab } = resolveNav(props.user.role, props.path, props.search ?? '', props.unread ?? 0)
+  const home = sections[0]
+  const cta = primaryAction(props.user.role)
+  const crumbTail = tab && section && tab.label !== section.label ? tab.label : section?.id === 'home' || !section ? null : props.title !== section.label ? props.title : null
   return (
     <html lang="ar" dir="rtl">
       <Head title={`${props.title} — إضاءات`} noindex />
-      <body>
-        {props.demo && (
-          <div class="demo-banner">
-            <Icon name="sparkles" /> نسخة معاينة تجريبية ببيانات وهمية — <a href="/">الموقع التعريفي</a>
-          </div>
-        )}
-        <div class="shell">
-          <aside class="side" id="side" aria-label="القائمة الرئيسية">
-            <a href={nav[0].href} class="brand">
-              <Logo />
-              <span>
-                إضاءات
-                <small>منصة التعليم المباشر</small>
-              </span>
-            </a>
-            <nav>
-              {nav.map((n) => (
-                <>
-                  {n.sep && <div class="sep">{n.sep}</div>}
-                  <a href={n.href} class={isActive(n.href, props.path, search) ? 'active' : ''} aria-current={isActive(n.href, props.path, search) ? 'page' : undefined}>
-                    <Icon name={n.icon} />
-                    {n.label}
-                    {!!n.count && <span class="count">{n.count}</span>}
+      <body class="app-body">
+        <script dangerouslySetInnerHTML={{ __html: NAV_BOOT }} />
+        <a href="#main" class="skip">
+          تخطَّ إلى المحتوى
+        </a>
+        <div class="app">
+          <aside class="nav" id="side" aria-label="القائمة الرئيسية">
+            <div class="nav-head">
+              <a href={home.href} class="brand" aria-label="إضاءات — الرئيسية">
+                <Logo size={32} />
+                <span class="brand-t">
+                  إضاءات
+                  <small>منصة التعليم المباشر</small>
+                </span>
+              </a>
+              <button class="icon-btn nav-collapse" id="navToggle" type="button" aria-label="طي القائمة الجانبية" title="طي القائمة" aria-pressed="false">
+                <Icon name="panel-right-close" />
+              </button>
+            </div>
+            {cta && (
+              <a class="btn btn-primary nav-cta" href={cta.href} title={cta.label}>
+                <Icon name={cta.icon} />
+                <span class="nav-label">{cta.label}</span>
+              </a>
+            )}
+            <nav class="nav-list">
+              {sections.map((s) => {
+                const on = s.id === section?.id
+                return (
+                  <a href={s.href} class={`nav-item${on ? ' on' : ''}`} aria-current={on ? 'page' : undefined} title={s.label}>
+                    <span class="nav-ico">
+                      <Icon name={s.icon} />
+                      {!!s.count && <span class="nav-dot" aria-hidden="true"></span>}
+                    </span>
+                    <span class="nav-label">{s.label}</span>
+                    {!!s.count && <span class="nav-count num">{s.count}</span>}
                   </a>
-                </>
-              ))}
+                )
+              })}
             </nav>
-            <a href="/me" class="side-foot" title="ملفي الشخصي">
-              <Avatar name={props.user.name} id={props.user.id} v={props.user.avatar_v} />
-              <div style="flex:1;min-width:0">
+            <a href="/me" class="nav-user" title="ملفي الشخصي">
+              <Avatar name={props.user.name} id={props.user.id} v={props.user.avatar_v} size="sm" />
+              <span class="nav-label">
                 <b>{props.user.name}</b>
                 <small>{roleLabel[props.user.role]}</small>
-              </div>
-              <Icon name="settings" />
+              </span>
             </a>
           </aside>
-          <div class="backdrop" id="backdrop"></div>
-          <div class="main">
-            <header class="topbar">
-              <div class="crumb">
-                <button class="icon-btn menu-btn" id="menuBtn" aria-label="فتح القائمة" aria-controls="side" aria-expanded="false">
-                  <Icon name="menu" />
-                </button>
-                {current && <Icon name={current.icon} class="hide-sm" />}
-                <span>{props.title}</span>
+          <div class="scrim" id="backdrop"></div>
+
+          <div class="frame">
+            <header class="titlebar">
+              <button class="icon-btn menu-btn" id="menuBtn" type="button" aria-label="فتح القائمة" aria-controls="side" aria-expanded="false">
+                <Icon name="menu" />
+              </button>
+              <div class="crumbs">
+                {section && section.id !== 'home' ? (
+                  <>
+                    <a href={section.href} class="crumb-root">
+                      {section.label}
+                    </a>
+                    {crumbTail && (
+                      <>
+                        <Icon name="chevron-left" class="crumb-sep" />
+                        <span class="crumb-leaf">{crumbTail}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <span class="crumb-leaf">{section?.id === 'home' ? 'الرئيسية' : props.title}</span>
+                )}
               </div>
-              <div class="who">
-                <button class="icon-btn" id="themeBtn" aria-label="تبديل الوضع الليلي" title="الوضع الليلي">
+              <div class="tb-actions">
+                {props.demo && (
+                  <a href="/" class="chip chip-demo hide-sm" title="الموقع التعريفي">
+                    <Icon name="sparkles" /> نسخة تجريبية
+                  </a>
+                )}
+                <button class="icon-btn" id="themeBtn" type="button" aria-label="تبديل الوضع الليلي" title="الوضع الليلي">
                   <Icon name="moon" class="theme-dark" />
                   <Icon name="sun" class="theme-light" />
                 </button>
                 <a class="icon-btn" href="/messages" aria-label={`الرسائل${props.unread ? ` (${props.unread} غير مقروءة)` : ''}`} title="الرسائل">
                   <Icon name="bell" />
-                  {!!props.unread && <span class="dot-badge">{props.unread}</span>}
+                  {!!props.unread && <span class="dot-badge num">{props.unread}</span>}
                 </a>
-                <form method="post" action="/logout" class="inline-form">
-                  <button class="icon-btn" title="تسجيل الخروج" aria-label="تسجيل الخروج">
-                    <Icon name="log-out" class="flip" />
-                  </button>
-                </form>
-                <a href="/me" class="me-link" aria-label="ملفي الشخصي" title="ملفي الشخصي">
-                  <Avatar name={props.user.name} id={props.user.id} v={props.user.avatar_v} ring />
-                </a>
+                <button class="acct-btn" id="acctBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="acctMenu" aria-label="حسابي">
+                  <Avatar name={props.user.name} id={props.user.id} v={props.user.avatar_v} size="sm" />
+                  <Icon name="chevron-down" class="hide-sm acct-caret" />
+                </button>
               </div>
             </header>
+            {section?.tabs && (
+              <nav class="subnav" aria-label={`صفحات ${section.label}`}>
+                <div class="subnav-in">
+                  {section.tabs.map((t) => (
+                    <a href={t.href} class={t === tab ? 'on' : ''} aria-current={t === tab ? 'page' : undefined}>
+                      {t.label}
+                    </a>
+                  ))}
+                </div>
+              </nav>
+            )}
             <main class="content" id="main">
               {props.children}
             </main>
           </div>
         </div>
-        <nav class="bottom-nav" aria-label="التنقل السريع">
-          {nav
-            .filter((n) => n.mobile)
-            .map((n) => (
-              <a href={n.href} class={isActive(n.href, props.path, search) ? 'active' : ''}>
-                <Icon name={n.icon} />
-                {n.label}
-                {!!n.count && <span class="count">{n.count}</span>}
-              </a>
-            ))}
+
+        <nav class="tabbar" aria-label="التنقل السريع">
+          {sections
+            .filter((s) => s.mobile)
+            .map((s) => {
+              const on = s.id === section?.id
+              return (
+                <a href={s.href} class={on ? 'on' : ''} aria-current={on ? 'page' : undefined}>
+                  <span class="tb-ind">
+                    <Icon name={s.icon} />
+                    {!!s.count && <span class="tb-count num">{s.count}</span>}
+                  </span>
+                  <span class="tb-label">{s.short ?? s.label}</span>
+                </a>
+              )
+            })}
         </nav>
+        <div class="menu" id="acctMenu" role="menu" aria-label="قائمة الحساب" hidden>
+          <div class="menu-head">
+            <Avatar name={props.user.name} id={props.user.id} v={props.user.avatar_v} size="lg" />
+            <div>
+              <b>{props.user.name}</b>
+              <small class="num">{props.user.phone}</small>
+              <span class="badge gray">{roleLabel[props.user.role]}</span>
+            </div>
+          </div>
+          <a href="/me" role="menuitem" class="menu-item">
+            <Icon name="user" /> ملفي الشخصي
+          </a>
+          <a href="/me#password" role="menuitem" class="menu-item">
+            <Icon name="key-round" /> تغيير كلمة المرور
+          </a>
+          <button type="button" role="menuitem" class="menu-item" data-theme-toggle>
+            <Icon name="moon" class="theme-dark" />
+            <Icon name="sun" class="theme-light" /> الوضع الليلي
+          </button>
+          <form method="post" action="/logout">
+            <button role="menuitem" class="menu-item danger">
+              <Icon name="log-out" class="flip" /> تسجيل الخروج
+            </button>
+          </form>
+        </div>
+
         <div class="toasts" id="toasts" role="status" aria-live="polite">
           {props.flash && <Toast type={props.flash.type} text={props.flash.text} />}
         </div>
@@ -252,6 +284,7 @@ export function AppLayout(props: {
     </html>
   )
 }
+
 
 const toastIcon = { ok: ['circle-check', 'ok'], bad: ['circle-x', 'bad'], warn: ['triangle-alert', 'warn'], info: ['info', 'info'] } as const
 export const Toast = ({ type, text }: { type: keyof typeof toastIcon; text: string }) => (
@@ -277,16 +310,26 @@ export const Money = ({ v, color }: { v: number; color?: boolean }) => {
   )
 }
 
-export const Stat = (p: { label: string; value: Child; sub?: Child; tone?: 'ok' | 'bad' | 'warn' | 'teal' | 'info'; icon?: IconName }) => (
-  <div class={`stat ${p.tone ?? ''}`}>
-    <div class="stat-top">
-      <span class="label">{p.label}</span>
-      {p.icon && <IconTile name={p.icon} tone={(p.tone ?? 'brand') as Tone} size="sm" />}
-    </div>
-    <div class="value">{p.value}</div>
-    {p.sub && <div class="sub">{p.sub}</div>}
-  </div>
-)
+/** مؤشر (KPI). مع href يصبح رابطاً للتفاصيل. */
+export const Stat = (p: { label: string; value: Child; sub?: Child; tone?: 'ok' | 'bad' | 'warn' | 'teal' | 'info'; icon?: IconName; href?: string }) => {
+  const inner = (
+    <>
+      <div class="stat-top">
+        <span class="label">{p.label}</span>
+        {p.icon && <IconTile name={p.icon} tone={(p.tone ?? 'brand') as Tone} size="sm" />}
+      </div>
+      <div class="value">{p.value}</div>
+      {p.sub && <div class="sub">{p.sub}</div>}
+    </>
+  )
+  return p.href ? (
+    <a class={`stat ${p.tone ?? ''}`} href={p.href}>
+      {inner}
+    </a>
+  ) : (
+    <div class={`stat ${p.tone ?? ''}`}>{inner}</div>
+  )
+}
 
 export const Empty = ({ icon, text, children }: { icon: IconName; text: string; children?: Child }) => (
   <div class="empty">

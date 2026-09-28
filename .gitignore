@@ -5,3 +5,4 @@ dist/
 *.log
 seed.sql
 .DS_Store
+.tmp/
