@@ -4,14 +4,14 @@
 import { Hono } from 'hono'
 import { isValidPhone, newPasswordRecord, normalizePhone, requireRole } from '../lib/auth'
 import { lessonPhase, splitInstallments, type ShareType } from '../lib/domain'
-import { courseFinances, financeSummary, installmentStates } from '../lib/finance'
+import { courseFinances, financeSummary, installmentStates, monthlyCollections, weeklyCollections } from '../lib/finance'
 import { back, form, go, int, str } from '../lib/http'
 import { formatPercent, formatSAR, parsePercent, parseSAR } from '../lib/money'
 import { lessonsFor } from '../lib/queries'
 import { notFound, page } from '../lib/render'
-import { fmtDate, fmtDateTime, isDate, nowSec, todayRiyadh } from '../lib/time'
+import { fmtDate, fmtDateTime, fmtTime, isDate, nowSec, todayRiyadh } from '../lib/time'
 import type { AppEnv, Role } from '../lib/types'
-import { Avatar, Empty, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
+import { AreaChart, Avatar, Empty, firstName, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
 import { pageInfo, readPage } from '../lib/paging'
 import { AvatarEditor } from './profile'
 import { Icon, IconTile } from '../views/icons'
@@ -24,107 +24,229 @@ adminRoutes.use('/admin', requireRole('admin'))
 const shareLabel = (t: ShareType, v: number) => (t === 'percent' ? `${formatPercent(v)} من المحصّل` : t === 'per_student' ? `${formatSAR(v)} لكل طالب` : `${formatSAR(v)} ثابت`)
 
 // ============ الرئيسية ============
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+/** الوقت مختصراً بدون ص/م (مثل 5:09) */
+const hm = (sec: number) => fmtTime(sec).replace(/\s?[صم]$/, '')
+/** تحية حسب ساعة الرياض */
+const greeting = (now: number) => (Math.floor(((now + 3 * 3600) % 86400) / 3600) < 12 ? 'صباح الخير' : 'مساء الخير')
+/** «18 طالبًا» / «طالبان» … صيغة مختصرة ومقروءة */
+const studentsLabel = (n: number) => (n === 1 ? 'طالب واحد' : n === 2 ? 'طالبان' : n <= 10 ? `${n} طلاب` : `${n} طالبًا`)
+
 adminRoutes.get('/admin', async (c) => {
   const db = c.env.DB
   const user = c.get('user')!
   const now = nowSec()
-  const monthStart = todayRiyadh().slice(0, 8) + '01'
-  const [counts, lessonsToday, insts, fin, leads] = await Promise.all([
+  const today = todayRiyadh()
+  const monthStart = today.slice(0, 8) + '01'
+  const [y, m, d] = today.split('-').map(Number)
+  const prevY = m === 1 ? y - 1 : y
+  const prevM = m === 1 ? 12 : m - 1
+  const prevStart = `${prevY}-${String(prevM).padStart(2, '0')}-01`
+  const prevEnd = `${prevY}-${String(prevM).padStart(2, '0')}-${String(Math.min(d, new Date(Date.UTC(prevY, prevM, 0)).getUTCDate())).padStart(2, '0')}`
+  const dayEnd = Math.floor((now + 3 * 3600) / 86400) * 86400 + 86400 - 3 * 3600
+  const [counts, lessonsToday, insts, fin, finPrev, rooms, weekly, monthly] = await Promise.all([
     db
       .prepare(
         `SELECT (SELECT COUNT(*) FROM users WHERE role='teacher' AND active=1) AS teachers,
                 (SELECT COUNT(*) FROM users WHERE role='student' AND active=1) AS students,
-                (SELECT COUNT(*) FROM courses WHERE status='active') AS courses,
-                (SELECT COUNT(*) FROM zoom_rooms WHERE active=1) AS rooms`,
+                (SELECT COUNT(*) FROM courses WHERE status='active') AS courses`,
       )
-      .first<{ teachers: number; students: number; courses: number; rooms: number }>(),
-    lessonsFor(db, user, now - 3 * 3600, now + 18 * 3600),
+      .first<{ teachers: number; students: number; courses: number }>(),
+    lessonsFor(db, user, now - 3 * 3600, dayEnd),
     installmentStates(db),
-    financeSummary(db, monthStart, todayRiyadh()),
-    db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE status = 'new'`).first<{ n: number }>(),
+    financeSummary(db, monthStart, today),
+    financeSummary(db, prevStart, prevEnd),
+    db.prepare('SELECT id, name FROM zoom_rooms WHERE active = 1 ORDER BY id').all<{ id: number; name: string }>(),
+    weeklyCollections(db, today, 14),
+    monthlyCollections(db, 12),
   ])
   const live = lessonsToday.filter((l) => lessonPhase(l, now) === 'live')
-  const upcoming = lessonsToday.filter((l) => ['open', 'upcoming'].includes(lessonPhase(l, now)))
-  const overdue = insts.filter((i) => i.state === 'overdue').sort((x, y) => y.remaining - x.remaining)
-  const soon = insts.filter((i) => i.state === 'due_soon' || i.state === 'partial')
-  const zoomLive = live.filter((l) => l.provider === 'zoom').length
+  const later = lessonsToday.filter((l) => ['open', 'upcoming'].includes(lessonPhase(l, now)))
+  const overdue = insts.filter((i) => i.state === 'overdue').sort((x, z) => z.remaining - x.remaining)
   const overdueSum = overdue.reduce((s, i) => s + i.remaining, 0)
-  // الرئيسية = نظرة عامة فقط: مؤشرات + إجراءات + ملخصات قصيرة (≤ 5 صفوف) مع «عرض الكل»
-  const nowList = [...live, ...upcoming].slice(0, 5)
-  const moreLessons = live.length + upcoming.length - nowList.length
+  const overdueStudents = new Set(overdue.map((i) => i.student_id)).size
+  // نسبة التحصيل: ما دُفع من الأقساط المستحقة حتى اليوم
+  const dueNow = insts.filter((i) => i.due_date <= today)
+  const dueAmt = dueNow.reduce((s, i) => s + i.amount, 0)
+  const rate = dueAmt ? dueNow.reduce((s, i) => s + i.covered, 0) / dueAmt : 1
+  const growth = finPrev.collected ? (fin.collected - finPrev.collected) / finPrev.collected : null
+  const weeks = weekly
+  const months = monthly.map((r) => r.v)
+  const busyRoom = (id: number) => lessonsToday.some((l) => l.zoom_room_id === id && ['live', 'open'].includes(lessonPhase(l, now)))
+  const jitsiLive = live.filter((l) => l.provider === 'jitsi').length
+  const progress = (l: (typeof live)[number]) => Math.min(100, Math.max(2, Math.round(((now - l.starts_at) / Math.max(60, l.ends_at - l.starts_at)) * 100)))
+  const name = firstName(user.name)
+  const pct = (x: number) => `${(x * 100).toFixed(1)}%`
+  const LiveRow = ({ l }: { l: (typeof live)[number] }) => (
+    <a class="ls" href={`/lessons/${l.id}`}>
+      <span class="tm num">{hm(l.starts_at)}</span>
+      <div class="grow">
+        <b>{l.title}</b>
+        <small>
+          {[l.teacher_name, l.provider === 'zoom' ? l.room_name : 'بث المنصة', studentsLabel(l.students)].filter(Boolean).join(' · ')}
+        </small>
+        <div class="prog" role="progressbar" aria-label="تقدّم الحصة" aria-valuenow={progress(l)} aria-valuemin={0} aria-valuemax={100}>
+          <i style={`width:${progress(l)}%`}></i>
+        </div>
+      </div>
+    </a>
+  )
   return page(
     c,
     'لوحة الإدارة',
-    <>
-      <PageHead title={`أهلاً، ${user.name.replace(/^أ\.\s*/, '').split(' ')[0]}`} sub={fmtDateTime(now)} />
-      <div class="stats">
-        <Stat href="/admin/live" label="مباشر الآن" value={<span class="num">{live.length}</span>} sub={`زوم ${zoomLive}/${counts?.rooms ?? 0} • بث المنصة ${live.length - zoomLive}`} tone="bad" />
-        <Stat href="/admin/finance" label="المحصّل هذا الشهر" value={<Money v={fin.collected} />} sub={`${fin.count} دفعة`} tone="ok" />
-        <Stat href="/admin/finance/installments?filter=overdue" label="متأخرات" value={<Money v={overdueSum} />} sub={`${overdue.length} قسط`} tone="warn" />
-        <Stat href="/admin/users?role=student" label="الطلاب" value={<span class="num">{counts?.students ?? 0}</span>} sub={`${counts?.teachers ?? 0} معلمة • ${counts?.courses ?? 0} دورة`} tone="teal" />
+    <div class="dash">
+      <div class="dash-hello hello">
+        <div>
+          <h1>
+            {greeting(now)}، <br class="m-br" />
+            <b>{name}</b>
+            <br class="d-part" />
+            <span class="d-part">{live.length || later.length ? 'يومك يسير بهدوء.' : 'يوم هادئ بلا حصص.'}</span>
+          </h1>
+          <p>
+            {live.length} حصص مباشرة الآن، <span class="d-part">{later.length} قادمة، </span>و{overdue.length} أقساط تنتظر المتابعة.
+          </p>
+        </div>
+        <div class="btns">
+          <a class="btn btn-ghost" href="/admin/finance/installments">
+            <Icon name="plus" /> <span class="d-part">تسجيل </span>دفعة
+          </a>
+          <a class="btn" href="/lessons#new">
+            <Icon name="calendar-days" /> جدولة حصة
+          </a>
+        </div>
       </div>
 
-      <div class="quick">
-        <a href="/lessons#new"><IconTile name="calendar-plus" tone="brand" size="sm" /> جدولة حصة</a>
-        <a href="/admin/users?role=student#new"><IconTile name="user-plus" tone="teal" size="sm" /> طالب جديد</a>
-        <a href="/admin/finance/installments"><IconTile name="wallet-cards" tone="ok" size="sm" /> تسجيل دفعة</a>
-        <a href="/admin/courses#new"><IconTile name="book-open" tone="info" size="sm" /> دورة جديدة</a>
-        <a href="/admin/finance/expenses#new"><IconTile name="receipt-text" tone="warn" size="sm" /> مصروف</a>
-        <a href="/admin/leads">
-          <IconTile name="inbox" tone="pink" size="sm" /> الطلبات
-          {!!leads?.n && <span class="badge bad" style="margin-inline-start:auto">{leads.n}</span>}
-        </a>
-      </div>
-
-      <div class="grid grid-main">
-        <section>
-          <div class="sec-title">
-            <h2><Icon name="radio" /> الحصص الآن والقادمة اليوم</h2>
-            <a href="/admin/live">عرض الكل</a>
-          </div>
-          <div class="list">
-            {nowList.length ? nowList.map((l) => <LessonItem l={l} now={now} user={user} compact />) : <Empty icon="coffee" text="لا توجد حصص متبقية اليوم." />}
-            {moreLessons > 0 && (
-              <a class="list-more" href="/admin/live">
-                و{moreLessons} حصة أخرى اليوم <Icon name="chevron-left" />
+      <section class="panel dash-panel" aria-labelledby="liveTitle">
+        <h2 id="liveTitle">
+          <span class="live-dot" aria-hidden="true"></span>على الهواء الآن
+          <span class="sp"></span>
+          <span class="cnt num">{live.length}</span>
+          <a class="all" href="/admin/live">عرض الكل ({live.length})</a>
+        </h2>
+        {live.length ? live.map((l) => <LiveRow l={l} />) : <p class="panel-empty">لا توجد حصص مباشرة الآن.</p>}
+        {later.length > 0 && (
+          <div class="d-part">
+            <div class="panel-sub">لاحقًا اليوم</div>
+            {later.slice(0, 4).map((l) => (
+              <a class="up" href={`/lessons/${l.id}`}>
+                <span class="tm num">{hm(l.starts_at)}</span>
+                <span class="t">{l.title}</span>
+                <small>{l.teacher_name ? firstName(l.teacher_name) : ''}</small>
               </a>
-            )}
+            ))}
           </div>
-        </section>
-        <section>
-          <div class="sec-title">
-            <h2><Icon name="calendar-clock" /> متابعة التحويلات</h2>
-            <a href="/admin/finance/installments">عرض الكل</a>
+        )}
+        <div class="rooms-t d-part">
+          <div class="panel-sub">القاعات</div>
+          <div class="rooms">
+            {rooms.results.map((r) => (
+              <div class="room-tile">
+                <b>{r.name.replace('قاعة', 'زوم')}</b>
+                <span>{busyRoom(r.id) ? 'مشغولة' : 'متاحة'}</span>
+              </div>
+            ))}
+            <div class="room-tile">
+              <b>البث</b>
+              <span>{jitsiLive ? 'مشغولة' : 'متاحة'}</span>
+            </div>
           </div>
-          <div class="list">
-            {overdue.length + soon.length ? (
-              [...overdue, ...soon].slice(0, 5).map((i) => (
-                <a class="item" href={`/admin/enrollments/${i.enrollment_id}`}>
-                  <Avatar name={i.student_name} id={i.student_id} v={i.student_avatar_v} size="sm" />
-                  <div class="grow">
-                    <div class="title">{i.student_name}</div>
-                    <div class="meta">
-                      <span>{i.course_title}</span>
-                      <span class={i.state === 'overdue' ? 'neg' : ''}>{i.state === 'overdue' ? 'متأخر منذ' : 'يستحق'} {fmtDate(i.due_date)}</span>
-                    </div>
-                  </div>
-                  <b class={i.state === 'overdue' ? 'neg' : ''}>
-                    <Money v={i.remaining} />
-                  </b>
+        </div>
+      </section>
+
+      <Stat
+        href="/admin/finance"
+        label="المحصّل هذا الشهر"
+        value={<Money v={fin.collected} whole />}
+        sub={
+          growth === null ? (
+            `${fin.count} دفعة`
+          ) : (
+            <>
+              <span class={growth >= 0 ? 'up-ok' : 'neg'}>
+                {growth >= 0 ? '↑' : '↓'} <span class="num">{pct(Math.abs(growth))}</span>
+              </span>{' '}
+              عن {AR_MONTHS[prevM - 1]}
+            </>
+          )
+        }
+      />
+      <Stat href="/admin/finance/installments?filter=overdue" label="المتأخرات" value={<Money v={overdueSum} whole />} sub={`${overdue.length} أقساط · ${overdueStudents} طلاب`} tone="bad" />
+      <Stat href="/admin/users?role=student" class="dash-students" label="الطلاب النشطون" value={<span class="num">{counts?.students ?? 0}</span>} sub={`${counts?.teachers ?? 0} معلمة · ${counts?.courses ?? 0} دورة`} />
+
+      {later.length > 0 && (
+        <div class="card dash-later">
+          <b>لاحقًا اليوم</b>
+          {later.slice(0, 3).map((l) => (
+            <a class="row" href={`/lessons/${l.id}`}>
+              <span class="tm num">{hm(l.starts_at)}</span>
+              <span class="t">{l.title}</span>
+              <small>{l.teacher_name ? firstName(l.teacher_name) : ''}</small>
+            </a>
+          ))}
+        </div>
+      )}
+
+      <section class="card dash-rev" aria-labelledby="revTitle">
+        <div class="rev-sw">
+          <input type="radio" name="rev" id="revW" checked />
+          <input type="radio" name="rev" id="revM" />
+          <div class="flex between" style="flex-wrap:nowrap;align-items:flex-start">
+            <div>
+              <div class="lb">الإيرادات الأسبوعية</div>
+              <h2 class="card-t" id="revTitle">
+                <span class="area-w">آخر 14 أسبوعًا</span>
+                <span class="area-m">آخر 12 شهرًا</span>
+              </h2>
+            </div>
+            <div class="seg sm" role="group" aria-label="الفترة">
+              <label for="revW">أسبوعي</label>
+              <label for="revM">شهري</label>
+            </div>
+          </div>
+          <AreaChart class="area-w" values={weeks} label={`الإيرادات الأسبوعية لآخر 14 أسبوعًا، آخر أسبوع ${formatSAR(weeks[13])}`} />
+          <AreaChart class="area-m" values={months} label={`الإيرادات الشهرية لآخر 12 شهرًا`} />
+        </div>
+      </section>
+
+      <section class="card dash-due" aria-labelledby="dueTitle">
+        <div class="lb" id="dueTitle" style="margin-bottom:4px">
+          أقساط متأخرة
+        </div>
+        {overdue.length ? (
+          overdue.slice(0, 4).map((i) => (
+            <div class="dr">
+              <Avatar name={i.student_name} id={i.student_id} v={i.student_avatar_v} size="sm" />
+              <div class="grow">
+                <a class="nm" href={`/admin/enrollments/${i.enrollment_id}`} style="display:block;color:inherit">
+                  {i.student_name}
                 </a>
-              ))
-            ) : (
-              <Empty icon="circle-check" text="لا توجد أقساط متأخرة أو مستحقة قريباً." />
-            )}
-            {overdue.length + soon.length > 5 && (
-              <a class="list-more" href="/admin/finance/installments">
-                و{overdue.length + soon.length - 5} قسطاً آخر <Icon name="chevron-left" />
+                <div class="sb">{i.course_title}</div>
+              </div>
+              <span class="amt">
+                <Money v={i.remaining} />
+              </span>
+              <a class="badge brand" href={`/messages?with=${i.student_id}`} aria-label={`تذكير ${i.student_name}`}>
+                تذكير
               </a>
-            )}
+            </div>
+          ))
+        ) : (
+          <Empty icon="circle-check" text="لا توجد أقساط متأخرة." />
+        )}
+        <div class="rate-box">
+          <div>
+            <div class="lb" style="font-size:12px">
+              نسبة التحصيل
+            </div>
+            <div class="v num">{pct(rate)}</div>
           </div>
-        </section>
-      </div>
-    </>,
+          <div class="prog thick ink" role="progressbar" aria-label="نسبة التحصيل" aria-valuenow={Math.round(rate * 100)} aria-valuemin={0} aria-valuemax={100}>
+            <i style={`width:${Math.round(rate * 100)}%`}></i>
+          </div>
+        </div>
+      </section>
+    </div>,
   )
 })
 
@@ -736,15 +858,15 @@ adminRoutes.get('/admin/courses/:id', async (c) => {
       {fin.collected > 0 && (
         <div class="card">
           <div class="bar" title="توزيع المحصّل">
-            <span style={`width:${bar(fin.teacher_due)}%;background:var(--brand)`}></span>
-            <span style={`width:${bar(fin.partner_due)}%;background:var(--accent)`}></span>
-            <span style={`width:${bar(fin.expenses)}%;background:var(--bad)`}></span>
+            <span style={`width:${bar(fin.teacher_due)}%;background:var(--ink)`}></span>
+            <span style={`width:${bar(fin.partner_due)}%;background:var(--gold)`}></span>
+            <span style={`width:${bar(fin.expenses)}%;background:var(--brand)`}></span>
             <span style={`width:${bar(Math.max(0, fin.net))}%;background:var(--ok)`}></span>
           </div>
           <div class="legend">
-            <span><i style="background:var(--brand)"></i>المعلمة</span>
-            <span><i style="background:var(--accent)"></i>الجهات</span>
-            <span><i style="background:var(--bad)"></i>المصروفات</span>
+            <span><i style="background:var(--ink)"></i>المعلمة</span>
+            <span><i style="background:var(--gold)"></i>الجهات</span>
+            <span><i style="background:var(--brand)"></i>المصروفات</span>
             <span><i style="background:var(--ok)"></i>صافي الربح</span>
           </div>
         </div>

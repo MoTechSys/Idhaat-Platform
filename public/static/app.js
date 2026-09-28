@@ -1,42 +1,13 @@
-/** سلوكيات عامة: القائمة على الجوال، الثيم، الإشعارات، تأكيد النماذج، حالة التحميل، الرسائل، PWA */
+/** سلوكيات عامة: قائمة الحساب، البحث السريع، الثيم، الإشعارات، تأكيد النماذج، حالة التحميل، الرسائل، PWA */
 const $ = (s, r = document) => r.querySelector(s)
 const $$ = (s, r = document) => [...r.querySelectorAll(s)]
 
-// ---- الدرج الجانبي (جوال) ----
-const side = $('#side'), scrim = $('#backdrop'), menuBtn = $('#menuBtn')
-const toggleMenu = (open) => {
-  side?.classList.toggle('open', open)
-  scrim?.classList.toggle('show', open)
-  menuBtn?.setAttribute('aria-expanded', String(open))
-  if (open) side?.querySelector('a.nav-item.on, a.nav-item')?.focus({ preventScroll: true })
-}
-menuBtn?.addEventListener('click', () => toggleMenu(!side.classList.contains('open')))
-scrim?.addEventListener('click', () => { toggleMenu(false); closeAcct() })
-// سحب الدرج لإغلاقه (إيماءة Android)
-let sx = null
-side?.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX }, { passive: true })
-side?.addEventListener('touchend', (e) => { if (sx !== null && e.changedTouches[0].clientX - sx > 60) toggleMenu(false); sx = null })
-
-// ---- طي القائمة إلى شريط أيقونات (سطح المكتب) ----
-const navToggle = $('#navToggle')
-const syncRail = () => {
-  const rail = document.documentElement.dataset.nav === 'rail'
-  navToggle?.setAttribute('aria-pressed', String(rail))
-  navToggle?.setAttribute('aria-label', rail ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية')
-  navToggle?.setAttribute('title', rail ? 'توسيع القائمة' : 'طي القائمة')
-}
-syncRail()
-navToggle?.addEventListener('click', () => {
-  const rail = document.documentElement.dataset.nav !== 'rail'
-  if (rail) document.documentElement.dataset.nav = 'rail'
-  else delete document.documentElement.dataset.nav
-  try { localStorage.setItem('nav', rail ? 'rail' : 'full') } catch {}
-  syncRail()
-})
+const scrim = $('#backdrop')
+scrim?.addEventListener('click', () => closeAcct())
 
 // ---- قائمة الحساب (منبثقة على سطح المكتب، ورقة سفلية على الجوال) ----
 const acctBtn = $('#acctBtn'), acctMenu = $('#acctMenu')
-const isSheet = () => matchMedia('(max-width: 599px)').matches
+const isSheet = () => matchMedia('(max-width: 699px)').matches
 function openAcct() {
   if (!acctMenu) return
   acctMenu.hidden = false
@@ -48,7 +19,7 @@ function closeAcct() {
   if (!acctMenu || acctMenu.hidden) return
   acctMenu.hidden = true
   acctBtn?.setAttribute('aria-expanded', 'false')
-  if (!side?.classList.contains('open')) scrim?.classList.remove('show')
+  scrim?.classList.remove('show')
 }
 acctBtn?.addEventListener('click', (e) => { e.stopPropagation(); acctMenu.hidden ? openAcct() : closeAcct() })
 document.addEventListener('click', (e) => { if (acctMenu && !acctMenu.hidden && !acctMenu.contains(e.target)) closeAcct() })
@@ -58,7 +29,31 @@ acctMenu?.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus() }
   if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
 })
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { toggleMenu(false); if (acctMenu && !acctMenu.hidden) { closeAcct(); acctBtn?.focus() } } })
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && acctMenu && !acctMenu.hidden) { closeAcct(); acctBtn?.focus() } })
+
+// ---- البحث والانتقال السريع (Ctrl/⌘+K أو زر البحث) ----
+const sDlg = $('#searchDlg'), sIn = $('#searchInput'), sEmpty = $('#searchEmpty')
+const sItems = () => $$('.search-item', sDlg).filter((a) => !a.hidden)
+const openSearch = () => { if (!sDlg) return; sIn.value = ''; filterSearch(); sDlg.showModal(); sIn.focus() }
+function filterSearch() {
+  const q = sIn.value.trim()
+  let n = 0
+  $$('.search-item', sDlg).forEach((a) => { const hit = !q || a.textContent.includes(q); a.hidden = !hit; a.classList.remove('sel'); if (hit) n++ })
+  $$('.search-sec', sDlg).forEach((h) => { h.hidden = !!q })
+  sEmpty.hidden = n > 0
+  sItems()[0]?.classList.add('sel')
+}
+$('#searchBtn')?.addEventListener('click', openSearch)
+sIn?.addEventListener('input', filterSearch)
+sIn?.addEventListener('keydown', (e) => {
+  const items = sItems(), i = items.findIndex((a) => a.classList.contains('sel'))
+  const move = (d) => { e.preventDefault(); items[i]?.classList.remove('sel'); const n = items[(i + d + items.length) % items.length]; n?.classList.add('sel'); n?.scrollIntoView({ block: 'nearest' }) }
+  if (e.key === 'ArrowDown') move(1)
+  if (e.key === 'ArrowUp') move(-1)
+  if (e.key === 'Enter' && items[i]) { e.preventDefault(); location.href = items[i].href }
+})
+sDlg?.addEventListener('click', (e) => { if (e.target === sDlg) sDlg.close() })
+document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && sDlg) { e.preventDefault(); sDlg.open ? sDlg.close() : openSearch() } })
 
 // ---- الوضع الليلي ----
 const toggleTheme = () => {
@@ -88,8 +83,8 @@ document.addEventListener('click', (e) => {
   location.href = row.dataset.href
 })
 
-// ---- إخفاء العنوان المكرر على الجوال (شريط التطبيق يعرض اسم الصفحة) ----
-const leaf = $('.crumb-leaf')?.textContent.trim()
+// ---- إخفاء العنوان المكرر على الجوال (الرأس يعرض اسم الصفحة) ----
+const leaf = $('.m-title')?.textContent.trim()
 const h1 = $('.page-head h1')
 if (leaf && h1 && h1.textContent.trim() === leaf) h1.closest('.page-head').classList.add('dup')
 

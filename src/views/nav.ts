@@ -1,7 +1,7 @@
 /**
  * نموذج التنقل (Information Architecture)
  *
- * المبدأ: أقسام رئيسية قليلة (≤ 6) في القائمة الجانبية / شريط التنقل السفلي،
+ * المبدأ: أقسام رئيسية قليلة (≤ 6) في تبويبات الشريط العلوي (سطح المكتب) / شريط التنقل السفلي (الجوال)،
  * وصفحات كل قسم تظهر كتبويبات أعلى المحتوى فقط عند الدخول للقسم.
  * بهذا تبقى القائمة قصيرة وواضحة بدل 16 رابطاً في قائمة واحدة.
  * (Material 3 Navigation: ≤ 5 وجهات في الشريط السفلي، و Fluent 2 Nav: تجميع هرمي)
@@ -36,11 +36,11 @@ export interface NavSection {
 export function sectionsFor(role: Role, unread = 0): NavSection[] {
   if (role === 'admin')
     return [
-      { id: 'home', label: 'الرئيسية', icon: 'layout-dashboard', href: '/admin', match: ['=/admin'], mobile: true },
+      { id: 'home', label: 'نظرة عامة', short: 'الرئيسية', icon: 'house', href: '/admin', match: ['=/admin'], mobile: true },
       {
         id: 'lessons',
         label: 'الحصص',
-        icon: 'radio',
+        icon: 'video',
         href: '/admin/live',
         match: ['/admin/live', '/lessons', '/admin/recordings', '/recordings', '/admin/rooms'],
         mobile: true,
@@ -53,7 +53,7 @@ export function sectionsFor(role: Role, unread = 0): NavSection[] {
       },
       {
         id: 'academic',
-        label: 'التعليم',
+        label: 'الدورات',
         icon: 'book-open',
         href: '/admin/courses',
         match: ['/admin/courses', '/admin/assignments', '/assignments'],
@@ -69,7 +69,6 @@ export function sectionsFor(role: Role, unread = 0): NavSection[] {
         icon: 'users',
         href: '/admin/users?role=student',
         match: ['/admin/users', '/admin/leads'],
-        mobile: true,
         tabs: [
           { href: '/admin/users?role=student', label: 'الطلاب' },
           { href: '/admin/users?role=teacher', label: 'المعلمات' },
@@ -80,7 +79,7 @@ export function sectionsFor(role: Role, unread = 0): NavSection[] {
       {
         id: 'finance',
         label: 'المالية',
-        icon: 'wallet',
+        icon: 'credit-card',
         href: '/admin/finance',
         match: ['/admin/finance', '/admin/enrollments', '/admin/partners'],
         mobile: true,
@@ -92,15 +91,15 @@ export function sectionsFor(role: Role, unread = 0): NavSection[] {
           { href: '/admin/partners', label: 'الجهات' },
         ],
       },
-      { id: 'messages', label: 'الرسائل', icon: 'messages-square', href: '/messages', match: ['/messages'], count: unread },
+      { id: 'messages', label: 'الرسائل', icon: 'message-square', href: '/messages', match: ['/messages'], count: unread, mobile: true },
     ]
   if (role === 'teacher')
     return [
-      { id: 'home', label: 'الرئيسية', icon: 'layout-dashboard', href: '/teacher', match: ['=/teacher'], mobile: true },
+      { id: 'home', label: 'نظرة عامة', short: 'الرئيسية', icon: 'house', href: '/teacher', match: ['=/teacher'], mobile: true },
       {
         id: 'lessons',
         label: 'حصصي',
-        icon: 'calendar-days',
+        icon: 'video',
         href: '/lessons',
         match: ['/lessons', '/teacher/recordings', '/recordings'],
         mobile: true,
@@ -111,14 +110,14 @@ export function sectionsFor(role: Role, unread = 0): NavSection[] {
       },
       { id: 'assignments', label: 'الواجبات', icon: 'notebook-pen', href: '/teacher/assignments', match: ['/teacher/assignments', '/assignments'], mobile: true },
       { id: 'earnings', label: 'مستحقاتي', icon: 'banknote', href: '/teacher/earnings', match: ['/teacher/earnings'], mobile: true },
-      { id: 'messages', label: 'الرسائل', icon: 'messages-square', href: '/messages', match: ['/messages'], count: unread, mobile: true },
+      { id: 'messages', label: 'الرسائل', icon: 'message-square', href: '/messages', match: ['/messages'], count: unread, mobile: true },
     ]
   return [
-    { id: 'home', label: 'الرئيسية', icon: 'house', href: '/student', match: ['=/student', '/lessons'], mobile: true },
+    { id: 'home', label: 'نظرة عامة', short: 'الرئيسية', icon: 'house', href: '/student', match: ['=/student', '/lessons'], mobile: true },
     { id: 'recordings', label: 'التسجيلات', icon: 'circle-play', href: '/student/recordings', match: ['/student/recordings', '/recordings'], mobile: true },
     { id: 'assignments', label: 'الواجبات', icon: 'notebook-pen', href: '/student/assignments', match: ['/student/assignments', '/assignments'], mobile: true },
     { id: 'payments', label: 'مدفوعاتي', short: 'المدفوعات', icon: 'credit-card', href: '/student/payments', match: ['/student/payments'], mobile: true },
-    { id: 'messages', label: 'الرسائل', icon: 'messages-square', href: '/messages', match: ['/messages'], count: unread, mobile: true },
+    { id: 'messages', label: 'الرسائل', icon: 'message-square', href: '/messages', match: ['/messages'], count: unread, mobile: true },
   ]
 }
 

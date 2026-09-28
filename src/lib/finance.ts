@@ -134,3 +134,15 @@ export async function monthlyCollections(db: D1Database, months = 6) {
     .all<{ ym: string; v: number }>()
   return r.results
 }
+
+/** التحصيل الأسبوعي لآخر n أسبوع حتى تاريخ معيّن (الأقدم أولاً) — للرسوم البيانية */
+export async function weeklyCollections(db: D1Database, today: string, weeks = 14): Promise<number[]> {
+  const r = await db
+    .prepare(
+      `SELECT CAST((julianday(?1) - julianday(paid_on)) / 7 AS INTEGER) AS w, SUM(amount) AS v FROM payments
+       WHERE paid_on > date(?1, ?2) AND paid_on <= ?1 GROUP BY w`,
+    )
+    .bind(today, `-${weeks * 7} days`)
+    .all<{ w: number; v: number }>()
+  return Array.from({ length: weeks }, (_, k) => r.results.find((x) => x.w === weeks - 1 - k)?.v ?? 0)
+}

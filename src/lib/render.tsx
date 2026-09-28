@@ -5,12 +5,12 @@ import { isDemo, takeFlash, unreadCount } from './http'
 import type { AppEnv } from './types'
 
 /** يعرض صفحة داخل لوحة التحكم مع القائمة وعدد الرسائل غير المقروءة والتنبيه */
-export async function page(c: Context<AppEnv>, title: string, body: Child, opts: { scripts?: string[]; status?: number } = {}) {
+export async function page(c: Context<AppEnv>, title: string, body: Child, opts: { scripts?: string[]; status?: number; actions?: Child } = {}) {
   const user = c.get('user')!
   const unread = await unreadCount(c.env.DB, user)
   const url = new URL(c.req.url)
   return c.html(
-    <AppLayout title={title} user={user} path={url.pathname} search={url.search} unread={unread} flash={takeFlash(c)} scripts={opts.scripts} demo={isDemo(c)}>
+    <AppLayout title={title} user={user} path={url.pathname} search={url.search} unread={unread} flash={takeFlash(c)} scripts={opts.scripts} demo={isDemo(c)} actions={opts.actions}>
       {body}
     </AppLayout>,
     (opts.status ?? 200) as 200,

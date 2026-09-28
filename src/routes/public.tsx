@@ -139,7 +139,7 @@ function LoginPage({ error, next, demo, phone }: { error?: string; next: string;
               </div>
               <p>«ارتحنا من الروابط والقروبات. كل شيء في مكان واحد، والمتابعة واضحة.»</p>
               <figcaption class="flex">
-                <span class="avatar sm" style="--av:#c77800">ف</span>
+                <span class="avatar sm av-5">ف</span>
                 <span>
                   <b>أبو فيصل</b>
                   <small style="display:block;color:rgba(255,255,255,.7)">ولي أمر</small>
@@ -186,8 +186,8 @@ publicRoutes.get('/manifest.webmanifest', (c) =>
       display: 'standalone',
       dir: 'rtl',
       lang: 'ar',
-      background_color: '#f4f5f7',
-      theme_color: '#3545c8',
+      background_color: '#f4efe6',
+      theme_color: '#f4efe6',
       icons: [
         { src: '/static/icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: '/static/icon-512.png', sizes: '512x512', type: 'image/png' },

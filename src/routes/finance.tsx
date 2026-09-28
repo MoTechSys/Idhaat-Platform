@@ -10,13 +10,13 @@
  */
 import { Hono } from 'hono'
 import { requireRole } from '../lib/auth'
-import { courseFinances, financeSummary, installmentStates, monthlyCollections } from '../lib/finance'
+import { courseFinances, financeSummary, installmentStates, weeklyCollections } from '../lib/finance'
 import { back, form, int, str } from '../lib/http'
 import { formatPercent, formatSAR, parseSAR } from '../lib/money'
 import { notFound, page } from '../lib/render'
 import { fmtDate, isDate, todayRiyadh } from '../lib/time'
 import type { AppEnv } from '../lib/types'
-import { Empty, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
+import { AreaChart, Avatar, Empty, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
 import { paginate } from '../lib/paging'
 import { Icon } from '../views/icons'
 
@@ -46,8 +46,13 @@ function period(q: (k: string) => string | undefined) {
 // ============ لوحة المالية ============
 financeRoutes.get('/admin/finance', async (c) => {
   const { from, to } = period((k) => c.req.query(k))
-  const [sum, fins, insts, monthly] = await Promise.all([financeSummary(c.env.DB, from, to), courseFinances(c.env.DB), installmentStates(c.env.DB), monthlyCollections(c.env.DB, 6)])
+  const [sum, fins, insts, monthly] = await Promise.all([financeSummary(c.env.DB, from, to), courseFinances(c.env.DB), installmentStates(c.env.DB), weeklyCollections(c.env.DB, to, 14)])
   const overdue = insts.filter((i) => i.state === 'overdue')
+  const overdueSum = overdue.reduce((s, i) => s + i.remaining, 0)
+  // نسبة التحصيل: ما دُفع من الأقساط المستحقة حتى اليوم
+  const dueNow = insts.filter((i) => i.due_date <= todayRiyadh())
+  const dueAmt = dueNow.reduce((s, i) => s + i.amount, 0)
+  const rate = dueAmt ? (dueNow.reduce((s, i) => s + i.covered, 0) / dueAmt) * 100 : 100
   const totals = fins.reduce(
     (a, f) => ({
       collected: a.collected + f.collected,
@@ -58,7 +63,6 @@ financeRoutes.get('/admin/finance', async (c) => {
     }),
     { collected: 0, outstanding: 0, teacher: 0, partner: 0, net: 0 },
   )
-  const maxM = Math.max(1, ...monthly.map((m) => m.v))
   // جدول الربح والخسارة: بحث + ترتيب (الأكثر ربحاً أولاً، الخاسر مميز) + ترقيم 10 صفوف؛ الإجمالي دائماً للكل
   const cq = str(c.req.query('cq'), 40)
   const sorted = [...fins].filter((f) => !cq || f.title.includes(cq) || (f.teacher_name ?? '').includes(cq)).sort((a, b) => b.net - a.net)
@@ -72,71 +76,76 @@ financeRoutes.get('/admin/finance', async (c) => {
           <Icon name="download" /> تصدير التحويلات CSV
         </a>
       </PageHead>
-      <form class="card flex" method="get" style="padding:.8rem 1rem">
-        <b>الفترة:</b>
+      <form class="toolbar period" method="get">
+        <span class="lb">الفترة</span>
         <input type="date" name="from" value={from} style="width:auto" aria-label="من تاريخ" />
         <span>إلى</span>
         <input type="date" name="to" value={to} style="width:auto" aria-label="إلى تاريخ" />
-        <button class="btn btn-soft btn-sm">عرض</button>
+        <button class="btn btn-soft">عرض</button>
       </form>
-      <div class="stats">
-        <Stat label="المحصّل في الفترة" value={<Money v={sum.collected} />} sub={`${sum.count} تحويل`} tone="ok" />
-        <Stat label="المصروفات" value={<Money v={sum.expenses} />} tone="bad" />
-        <Stat label="المستحقات المصروفة" value={<Money v={sum.payouts} />} sub="معلمات + جهات" />
-        <Stat label="صافي النقد في الفترة" value={<Money v={sum.cashNet} color />} tone="teal" />
-      </div>
-      <div class="stats">
-        <Stat label="متبقي على الطلاب (كل الدورات)" value={<Money v={totals.outstanding} />} tone="warn" />
-        <Stat label="أقساط متأخرة" value={<Money v={overdue.reduce((s, i) => s + i.remaining, 0)} />} sub={`${overdue.length} قسط`} tone="bad" />
-        <Stat label="مستحقات معلمات غير مصروفة" value={<Money v={totals.teacher} />} />
-        <Stat label="مستحقات جهات غير مصروفة" value={<Money v={totals.partner} />} />
-      </div>
-      <div class="grid grid-2">
-        <div class="card">
-          <h2>التحصيل الشهري</h2>
-          {monthly.length ? (
-            <div style="display:flex;align-items:flex-end;gap:.6rem;height:180px;padding-top:1rem">
-              {monthly.map((m) => (
-                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.3rem;height:100%;justify-content:flex-end">
-                  <small class="num">{formatSAR(m.v, false)}</small>
-                  <div style={`width:100%;max-width:48px;height:${Math.max(4, (m.v / maxM) * 130)}px;background:var(--brand);border-radius:6px 6px 2px 2px`}></div>
-                  <small class="muted num">{m.ym}</small>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty icon="trending-up" text="لا توجد تحويلات بعد." />
-          )}
-        </div>
-        <div class="card">
-          <div class="card-head">
-            <h2>أعلى المتأخرات</h2>
-            <a href="/admin/finance/installments?filter=overdue">الكل</a>
+      <div class="fin-top">
+        <section class="panel fin-hero" aria-labelledby="finHero">
+          <div class="lb" id="finHero">
+            المحصّل · <span class="num">{fmtDate(from)}</span> – <span class="num">{fmtDate(to)}</span>
           </div>
-          {overdue.length ? (
-            <div class="list">
-              {overdue
-                .sort((a, b) => b.remaining - a.remaining)
-                .slice(0, 5)
-                .map((i) => (
-                  <a class="item" href={`/admin/enrollments/${i.enrollment_id}`} style="color:inherit">
-                    <div class="grow">
-                      <div class="title">{i.student_name}</div>
-                      <div class="meta">
-                        {i.course_title} • استحق {fmtDate(i.due_date)}
-                      </div>
-                    </div>
-                    <b class="neg">
-                      <Money v={i.remaining} />
-                    </b>
-                  </a>
-                ))}
+          <div class="big">
+            <Money v={sum.collected} />
+          </div>
+          <div class="up-note">
+            <span class="num">{sum.count}</span> تحويل · صافي النقد <Money v={sum.cashNet} />
+          </div>
+          <AreaChart values={monthly} height={90} label="التحصيل الأسبوعي لآخر 14 أسبوعاً" />
+        </section>
+        <div class="stats fin-kpis">
+          <div class="stat">
+            <div class="label">نسبة التحصيل</div>
+            <div class="value">
+              <span class="num">{rate.toFixed(1)}%</span>
             </div>
-          ) : (
-            <Empty icon="circle-check" text="لا توجد متأخرات." />
-          )}
+            <div class="prog thick ink" role="progressbar" aria-label="نسبة التحصيل" aria-valuenow={Math.round(rate)} aria-valuemin={0} aria-valuemax={100} style="margin-top:10px">
+              <i style={`width:${Math.round(rate)}%`}></i>
+            </div>
+          </div>
+          <Stat label="متأخر" value={<Money v={overdueSum} whole />} sub={`${overdue.length} أقساط · ${new Set(overdue.map((i) => i.student_id)).size} طلاب`} tone="bad" href="/admin/finance/installments?filter=overdue" />
+          <Stat label="المصروفات" value={<Money v={sum.expenses} whole />} href="/admin/finance/expenses" />
+          <Stat label="المستحقات المصروفة" value={<Money v={sum.payouts} whole />} sub="معلمات + جهات" href="/admin/finance/payouts" />
+          <Stat label="متبقي على الطلاب" value={<Money v={totals.outstanding} whole />} sub="كل الدورات" />
+          <Stat label="مستحقات غير مصروفة" value={<Money v={totals.teacher + totals.partner} whole />} sub={`معلمات ${formatSAR(totals.teacher)} · جهات ${formatSAR(totals.partner)}`} href="/admin/finance/payouts" />
         </div>
       </div>
+      <section class="card dues" aria-labelledby="duesTitle">
+        <div class="card-head">
+          <h2 id="duesTitle">أقساط متأخرة</h2>
+          <a class="pill brand" href="/admin/finance/installments?filter=overdue">
+            عرض الكل
+          </a>
+        </div>
+        {overdue.length ? (
+          <div class="dues-grid">
+            {[...overdue]
+              .sort((a, b) => b.remaining - a.remaining)
+              .slice(0, 6)
+              .map((i) => {
+                const late = Math.max(1, Math.round((Date.parse(todayRiyadh()) - Date.parse(i.due_date)) / 86400000))
+                return (
+                  <a class="dr" href={`/admin/enrollments/${i.enrollment_id}`}>
+                    <Avatar name={i.student_name} id={i.student_id} v={i.student_avatar_v} />
+                    <div class="grow">
+                      <div class="nm">{i.student_name}</div>
+                      <div class="sb">{i.course_title}</div>
+                    </div>
+                    <div class="amt">
+                      <Money v={i.remaining} />
+                      <span class="late">متأخر {late} {late === 1 ? 'يوم' : late === 2 ? 'يومين' : late <= 10 ? 'أيام' : 'يومًا'}</span>
+                    </div>
+                  </a>
+                )
+              })}
+          </div>
+        ) : (
+          <Empty icon="circle-check" text="لا توجد متأخرات." />
+        )}
+      </section>
       <div class="card">
         <div class="card-head">
           <h2>الربح والخسارة لكل دورة</h2>
@@ -230,6 +239,18 @@ financeRoutes.get('/admin/finance', async (c) => {
         <Pager info={finInfo} url={c.req.url} />
       </div>
     </>,
+    {
+      actions: (
+        <>
+          <a class="icon-btn" href={`/admin/finance/export/payments.csv?from=${from}&to=${to}`} aria-label="تصدير التحويلات CSV">
+            <Icon name="download" />
+          </a>
+          <a class="icon-btn dark" href="/admin/finance/installments" aria-label="تسجيل دفعة">
+            <Icon name="plus" />
+          </a>
+        </>
+      ),
+    },
   )
 })
 

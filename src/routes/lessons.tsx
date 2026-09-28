@@ -91,25 +91,112 @@ export function LessonItem({ l, now, user, compact }: { l: LessonRow; now: numbe
   )
 }
 
+/** وقت مختصر بلا ص/م */
+const hm = (sec: number) => fmtTime(sec).replace(/\s?[صم]$/, '')
+
+/**
+ * بطاقة حصة (المرجع 04): الوقت + حالة + القاعة، العنوان، «المعلمة · الدورة»، ثم شريط التقدّم/الحضور وزر الانضمام.
+ * البطاقة كلها قابلة للنقر (data-href) والزر الداخلي يعمل مستقلاً.
+ */
+export function LessonCard({ l, now, user }: { l: LessonRow; now: number; user: SessionUser }) {
+  const phase = lessonPhase(l, now)
+  const joinable = canJoinNow(l, now)
+  const href = `/lessons/${l.id}`
+  const pct = phase === 'live' ? Math.min(100, Math.max(2, Math.round(((now - l.starts_at) / Math.max(60, l.ends_at - l.starts_at)) * 100))) : phase === 'ended' ? 100 : 0
+  const who = [user.role !== 'teacher' ? l.teacher_name : null, l.course_title].filter(Boolean).join(' · ')
+  return (
+    <div class={`lcard${phase === 'ended' || phase === 'cancelled' ? ' past' : ''}`} data-href={href}>
+      <div class="lcard-top">
+        <span class="tm num">{hm(l.starts_at)}</span>
+        {phase === 'live' ? (
+          <span class="pill brand">
+            <span class="live-dot" aria-hidden="true"></span>مباشر
+          </span>
+        ) : phase === 'open' ? (
+          <span class="pill brand">تبدأ قريباً</span>
+        ) : phase === 'cancelled' ? (
+          <span class="pill">ملغاة</span>
+        ) : phase === 'ended' ? (
+          <span class="pill">انتهت</span>
+        ) : (
+          <span class="pill">{dayLabel(l.starts_at, now)}</span>
+        )}
+        {l.recordings > 0 && (
+          <span class="pill" title="تسجيلات متاحة">
+            <Icon name="clapperboard" /> {l.recordings}
+          </span>
+        )}
+        <span class="where">{l.provider === 'zoom' ? l.room_name : 'بث المنصة'}</span>
+      </div>
+      <a class="t" href={href}>
+        {l.title}
+      </a>
+      <div class="s">{who}</div>
+      <div class="lcard-foot">
+        {phase === 'live' || phase === 'ended' ? (
+          <div class="bar4" role="progressbar" aria-label="تقدّم الحصة" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+            <i style={`width:${pct}%`}></i>
+          </div>
+        ) : (
+          <span class="sp"></span>
+        )}
+        <span class="n">
+          {user.role === 'student' ? fmtDuration(l.ends_at - l.starts_at) : <><span class="num">{l.students}</span> طالب · {fmtDuration(l.ends_at - l.starts_at)}</>}
+        </span>
+        {joinable && (
+          <a class="btn btn-sm" href={href}>
+            {user.role === 'student' ? 'انضمام' : phase === 'live' ? 'العودة' : 'ابدأ'}
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ============ الجدولة (الإدارة والمعلمات) ============
 lessonRoutes.get('/lessons', requireRole('admin', 'teacher'), async (c) => {
   const user = c.get('user')!
   const now = nowSec()
-  const view = c.req.query('view') === 'past' ? 'past' : 'upcoming'
-  const lessons =
-    view === 'past'
-      ? (await lessonsFor(c.env.DB, user, now - 30 * 86400, now, 300)).filter((l) => lessonPhase(l, now) === 'ended' || l.status === 'cancelled').reverse()
-      : (await lessonsFor(c.env.DB, user, now - 3 * 3600, now + 60 * 86400, 300)).filter((l) => !['ended', 'cancelled'].includes(lessonPhase(l, now)))
+  const q = c.req.query('view')
+  const view = q === 'past' ? 'past' : q === 'live' ? 'live' : 'upcoming'
+  const dayKey = (x: number) => Math.floor((x + 3 * 3600) / 86400)
+  const today = dayKey(now)
+  const dayParam = Number(c.req.query('day'))
+  const day = Number.isInteger(dayParam) && dayParam >= 0 && dayParam <= 4 ? dayParam : null
+  const [active, pastAll] = await Promise.all([
+    lessonsFor(c.env.DB, user, now - 3 * 3600, now + 60 * 86400, 300),
+    view === 'past' ? lessonsFor(c.env.DB, user, now - 30 * 86400, now, 300) : Promise.resolve([] as LessonRow[]),
+  ])
+  const open = active.filter((l) => !['ended', 'cancelled'].includes(lessonPhase(l, now)))
+  const liveNow = open.filter((l) => ['live', 'open'].includes(lessonPhase(l, now)))
+  const coming = open.filter((l) => lessonPhase(l, now) === 'upcoming')
+  const past = pastAll.filter((l) => lessonPhase(l, now) === 'ended' || l.status === 'cancelled').reverse()
+  const base = view === 'past' ? past : view === 'live' ? liveNow : open
+  const lessons = day === null ? base : base.filter((l) => dayKey(l.starts_at) === today + day)
   const { items: pageLessons, info } = paginate(lessons, c.req.url)
   const courses = await coursesFor(c.env.DB, user)
   const rooms = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM zoom_rooms WHERE active = 1').first<{ n: number }>()
   const nextHour = Math.ceil((now + 3600) / 1800) * 1800
+  const WD = ['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت']
+  const qs = (o: { view?: string; day?: number | null }) => {
+    const p = new URLSearchParams()
+    const v = o.view ?? view
+    if (v !== 'upcoming') p.set('view', v)
+    const d = o.day === undefined ? day : o.day
+    if (d !== null && d !== undefined) p.set('day', String(d))
+    const str = p.toString()
+    return `/lessons${str ? `?${str}` : ''}`
+  }
   return page(
     c,
     'جدول الحصص',
     <>
-      <PageHead title="جدول الحصص" sub={`قاعات الزوم المتاحة: ${rooms?.n ?? 0} — عند امتلائها تتحول الحصة تلقائياً لبث المنصة`} />
-      <details class="drop" id="new" open={lessons.length === 0}>
+      <PageHead title="جدول الحصص" sub={`قاعات الزوم المتاحة: ${rooms?.n ?? 0} — عند امتلائها تتحول الحصة تلقائياً لبث المنصة`}>
+        <a class="btn" href="#new">
+          <Icon name="plus" /> جدولة حصة
+        </a>
+      </PageHead>
+      <details class="drop" id="new" open={active.length === 0}>
         <summary>جدولة حصة جديدة</summary>
         <div>
           {courses.length === 0 ? (
@@ -169,29 +256,55 @@ lessonRoutes.get('/lessons', requireRole('admin', 'teacher'), async (c) => {
           )}
         </div>
       </details>
-      <div class="tabs">
-        <a href="/lessons" class={view === 'upcoming' ? 'active' : ''}>
-          القادمة والجارية
+      {view !== 'past' && (
+        <nav class="days" aria-label="اختيار اليوم">
+          {[0, 1, 2, 3, 4].map((k) => {
+            const t = now + k * 86400
+            const wd = new Date((t + 3 * 3600) * 1000).getUTCDay()
+            const dm = new Date((t + 3 * 3600) * 1000).getUTCDate()
+            const on = day === k
+            return (
+              <a href={qs({ day: on ? null : k })} class={on ? 'on' : ''} aria-current={on ? 'date' : undefined} aria-label={`${k === 0 ? 'اليوم' : WD[wd]} ${dm}`}>
+                <small>{k === 0 ? 'اليوم' : WD[wd]}</small>
+                <b class="num">{dm}</b>
+              </a>
+            )
+          })}
+        </nav>
+      )}
+      <nav class="seg full" aria-label="حالة الحصص">
+        <a href={qs({ view: 'live', day: null })} class={view === 'live' ? 'on' : ''} aria-current={view === 'live' ? 'page' : undefined}>
+          مباشر <span class="num">({liveNow.length})</span>
         </a>
-        <a href="/lessons?view=past" class={view === 'past' ? 'active' : ''}>
-          السابقة (30 يوم)
+        <a href={qs({ view: 'upcoming' })} class={view === 'upcoming' ? 'on' : ''} aria-current={view === 'upcoming' ? 'page' : undefined}>
+          القادمة <span class="num">({coming.length + liveNow.length})</span>
         </a>
-      </div>
+        <a href={qs({ view: 'past', day: null })} class={view === 'past' ? 'on' : ''} aria-current={view === 'past' ? 'page' : undefined}>
+          السابقة
+        </a>
+      </nav>
       {lessons.length ? (
         <>
-          <div class="list">
+          <div class="lcards">
             {pageLessons.map((l) => (
-              <LessonItem l={l} now={now} user={user} />
+              <LessonCard l={l} now={now} user={user} />
             ))}
           </div>
           <Pager info={info} url={c.req.url} />
         </>
       ) : (
         <div class="card">
-          <Empty icon="calendar-days" text="لا توجد حصص هنا." />
+          <Empty icon="calendar-days" text={view === 'live' ? 'لا توجد حصص مباشرة الآن.' : 'لا توجد حصص هنا.'} />
         </div>
       )}
     </>,
+    {
+      actions: (
+        <a class="icon-btn dark" href="#new" aria-label="جدولة حصة جديدة">
+          <Icon name="plus" />
+        </a>
+      ),
+    },
   )
 })
 

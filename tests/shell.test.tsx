@@ -47,7 +47,24 @@ describe('هيكل التطبيق (App Shell)', () => {
     const html = await render('student', '/student', '', 4)
     expect(html).not.toContain('nav-cta')
     expect(html).not.toContain('class="subnav"')
-    expect(html).toContain('tb-count num">4')
+    // الشريط السفلي: نقطة برتقالية + العدد في اسم الرابط لقارئ الشاشة
+    expect(html).toContain('tb-dot')
+    expect(html).toContain('الرسائل (4 غير مقروءة)')
+  })
+
+  test('لا قائمة جانبية: شريط علوي بتبويبات كبسولية + شريط سفلي ≤ 5', async () => {
+    const html = await render('admin', '/admin')
+    expect(html).not.toContain('id="side"')
+    expect(html).toContain('class="topbar"')
+    expect(html).toContain('class="toptabs"')
+    expect((html.match(/<nav class="tabbar"[\s\S]*?<\/nav>/)?.[0].match(/<a /g) ?? []).length).toBeLessThanOrEqual(5)
+    expect(html).toContain('id="searchDlg"')
+  })
+
+  test('الجوال: صفحة فرعية تعرض زر رجوع وعنوان القسم', async () => {
+    const html = await render('admin', '/admin/finance/course/1')
+    expect(html).toContain('m-back')
+    expect(html).toContain('href="/admin/finance"')
   })
 
   test('الإدارة والمعلمة: زر جدولة حصة يفتح النموذج مباشرة', async () => {
