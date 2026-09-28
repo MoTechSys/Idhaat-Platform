@@ -1,6 +1,6 @@
 # وثيقة التسليم (Handoff) — منصة إضاءات
 
-> آخر تحديث: 2026-09-28 · الفرع: `genspark_ai_developer` · PR مفتوح: https://github.com/MoTechSys/Idhaat-Platform/pull/2
+> آخر تحديث: 2026-09-28 · كل العمل مدموج في `main` (PR #1 و #2). ابدأ العمل الجديد من `main` على الفرع `genspark_ai_developer` ثم افتح PR جديداً وادمجه بعد التحقق.
 > اقرأ هذا الملف أولاً ثم `README.md` و`docs/07-design-system.md`.
 
 ## 1. المشروع باختصار
@@ -32,7 +32,7 @@
 | `desktop_reference.html`, `mobile_reference.html` | المراجع البصرية لتصميم v4 |
 
 ## 3. ما أُنجز
-- v3 (PR #1، مدموج) ثم v4 «دافئ تحريري» (PR #2، مفتوح).
+- v3 (PR #1، مدموج) ثم v4 «دافئ تحريري» (PR #2، مدموج في main).
 - **في هذه الجلسة (طلب الرسائل الصوتية للعميل) — بدأ التنفيذ:**
   1. ✅ **الخط**: استبدال Alexandria + IBM Plex بخط واحد **Readex Pro** متغيّر (160–700)، مستضاف ذاتياً
      (`public/static/fonts/readex-pro-{arabic,latin}-wght-normal.woff2`). السبب: قورن بصرياً مع Noto Kufi وAlmarai وTajawal وCairo وEl Messiri وPlex؛
@@ -77,7 +77,7 @@
    (سطرين، حجم clamp(2.2rem…3.4rem)، line-height 1.35)، ونفس الشيء لـ`.sec-head h2`, `.num-card b`, `.book h2`, `.step-n` (كلها 800).
 9. **التوثيق**: حدّث `docs/07-design-system.md` (الخط، سلّم الأحجام، الهيكل الثابت، i18n) وهذا الملف.
 10. **التحقق والتسليم**: `npm test` · `npm run typecheck` · `bash tests/e2e.sh` · `crawl.py` · `contrast.py` · لقطات في `docs/screens/` ⇐ commit ⇐ `git fetch origin main && git rebase origin/main`
-    ⇐ squash ⇐ `git push -f origin genspark_ai_developer` ⇐ تحديث PR #2 ومشاركة الرابط.
+    ⇐ squash ⇐ `git push -f origin genspark_ai_developer` ⇐ إنشاء PR جديد إلى main ⇐ دمجه بعد التحقق ⇐ مشاركة الرابط.
 
 ## 5. ملاحظات فنية
 - الجوال < 700px (`.m-only`, `.m-hide`, `.hide-sm`)، اللوحي ≤ 1023px، `.dash` على سطح المكتب `repeat(3,1fr) 380px`.
