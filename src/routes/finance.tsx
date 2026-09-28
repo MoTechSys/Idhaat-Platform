@@ -99,7 +99,7 @@ financeRoutes.get('/admin/finance', async (c) => {
               {monthly.map((m) => (
                 <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.3rem;height:100%;justify-content:flex-end">
                   <small class="num">{formatSAR(m.v, false)}</small>
-                  <div style={`width:100%;max-width:48px;height:${Math.max(4, (m.v / maxM) * 130)}px;background:linear-gradient(180deg,#7b61ff,#5b3df5);border-radius:8px 8px 0 0`}></div>
+                  <div style={`width:100%;max-width:48px;height:${Math.max(4, (m.v / maxM) * 130)}px;background:var(--brand);border-radius:6px 6px 2px 2px`}></div>
                   <small class="muted num">{m.ym}</small>
                 </div>
               ))}
@@ -975,7 +975,9 @@ financeRoutes.get('/admin/finance/expenses', async (c) => {
     'المصروفات',
     <>
       <PageHead title="المصروفات" sub={`الإجمالي في الفترة: ${formatSAR(total)}`} />
-      <div class="card">
+      <details class="drop" id="new">
+        <summary>تسجيل مصروف</summary>
+        <div>
         <form method="post" action="/admin/finance/expenses">
           <div class="form-grid">
             <div class="field">
@@ -1011,7 +1013,8 @@ financeRoutes.get('/admin/finance/expenses', async (c) => {
           </div>
           <button class="btn">+ إضافة مصروف</button>
         </form>
-      </div>
+        </div>
+      </details>
       <form class="flex" method="get" style="margin-bottom:1rem">
         <input type="date" name="from" value={from} style="width:auto" aria-label="من تاريخ" />
         <span>إلى</span>

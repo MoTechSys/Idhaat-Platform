@@ -30,37 +30,61 @@ export function PhaseBadge({ l, now }: { l: LessonRow; now: number }) {
 export const ProviderBadge = ({ l }: { l: LessonRow }) =>
   l.provider === 'zoom' ? <span class="badge zoom"><Icon name="video" /> زوم • {l.room_name}</span> : <span class="badge ok"><Icon name="radio-tower" /> بث المنصة</span>
 
-export function LessonItem({ l, now, user }: { l: LessonRow; now: number; user: SessionUser }) {
+/** اليوم النسبي بالعربية: اليوم / غداً / اسم اليوم */
+function dayLabel(sec: number, now: number) {
+  const d = (x: number) => Math.floor((x + 3 * 3600) / 86400)
+  const diff = d(sec) - d(now)
+  if (diff === 0) return 'اليوم'
+  if (diff === 1) return 'غداً'
+  if (diff === -1) return 'أمس'
+  return fmtDateTime(sec).split('،')[0]
+}
+
+/**
+ * صف حصة مدمج (List row): عمود الوقت • العنوان والتفاصيل • الحالة • الإجراء.
+ * الصف كله قابل للنقر، وزر الإجراء يظهر فقط عندما يكون الدخول متاحاً.
+ */
+export function LessonItem({ l, now, user, compact }: { l: LessonRow; now: number; user: SessionUser; compact?: boolean }) {
   const phase = lessonPhase(l, now)
   const joinable = canJoinNow(l, now)
+  const href = `/lessons/${l.id}`
   return (
-    <div class={`item ${phase === 'live' ? 'live' : ''}`}>
-      <div class="dot"><Icon name={l.provider === 'zoom' ? 'video' : 'radio-tower'} /></div>
+    <div class={`item${phase === 'live' ? ' live' : ''}`} data-href={href}>
+      <div class="when">
+        <b class="num">{fmtTime(l.starts_at).replace(/\s?[صم]$/, '')}</b>
+        <small>{phase === 'live' ? 'الآن' : dayLabel(l.starts_at, now)}</small>
+      </div>
       <div class="grow">
-        <div class="title">{l.title}</div>
+        <a class="title" href={href} style="display:block;color:inherit;text-decoration:none">
+          {l.title}
+        </a>
         <div class="meta">
-          <span><Icon name="book-open" /> {l.course_title}</span>
-          {user.role !== 'teacher' && l.teacher_name && <span><Icon name="presentation" /> {l.teacher_name}</span>}
+          <span>{l.course_title}</span>
+          {user.role !== 'teacher' && l.teacher_name && <span class="hide-xs">{l.teacher_name}</span>}
+          <span class="hide-xs">{fmtDuration(l.ends_at - l.starts_at)}</span>
+          {!compact && user.role !== 'student' && (
+            <span class="hide-xs">
+              <Icon name="users" /> {l.students}
+            </span>
+          )}
           <span>
-            <Icon name="clock" /> {fmtDateTime(l.starts_at)} ({fmtDuration(l.ends_at - l.starts_at)})
+            <Icon name={l.provider === 'zoom' ? 'video' : 'radio-tower'} /> {l.provider === 'zoom' ? l.room_name : 'بث المنصة'}
           </span>
-          {user.role !== 'student' && <span><Icon name="users" /> {l.students}</span>}
-        </div>
-        <div class="flex mt-0" style="margin-top:.35rem">
-          <PhaseBadge l={l} now={now} />
-          <ProviderBadge l={l} />
-          {l.recordings > 0 && <span class="badge teal"><Icon name="clapperboard" /> {l.recordings} تسجيل</span>}
         </div>
       </div>
       <div class="actions">
+        {phase === 'live' ? <span class="badge live hide-xs">مباشر</span> : phase === 'open' ? <span class="badge warn hide-xs">تبدأ قريباً</span> : phase === 'cancelled' ? <span class="badge bad">ملغاة</span> : phase === 'ended' ? <span class="badge gray">انتهت</span> : null}
+        {l.recordings > 0 && (
+          <span class="badge teal hide-xs">
+            <Icon name="clapperboard" /> {l.recordings}
+          </span>
+        )}
         {joinable ? (
-          <a class={`btn ${phase === 'live' ? 'btn-ok' : ''}`} href={`/lessons/${l.id}`}>
-            {user.role === 'student' ? 'دخول الحصة' : phase === 'live' ? 'العودة للحصة' : 'ابدأ الحصة'}
+          <a class={`btn btn-sm${phase === 'live' ? ' btn-ok' : ''}`} href={href}>
+            {user.role === 'student' ? 'دخول' : phase === 'live' ? 'العودة' : 'ابدأ'}
           </a>
         ) : (
-          <a class="btn btn-ghost" href={`/lessons/${l.id}`}>
-            التفاصيل
-          </a>
+          <Icon name="chevron-left" class="chev" />
         )}
       </div>
     </div>
@@ -85,7 +109,7 @@ lessonRoutes.get('/lessons', requireRole('admin', 'teacher'), async (c) => {
     'جدول الحصص',
     <>
       <PageHead title="جدول الحصص" sub={`قاعات الزوم المتاحة: ${rooms?.n ?? 0} — عند امتلائها تتحول الحصة تلقائياً لبث المنصة`} />
-      <details class="drop" open={lessons.length === 0}>
+      <details class="drop" id="new" open={lessons.length === 0}>
         <summary>جدولة حصة جديدة</summary>
         <div>
           {courses.length === 0 ? (

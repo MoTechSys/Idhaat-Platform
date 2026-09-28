@@ -115,7 +115,7 @@ profileRoutes.get('/me', requireRole(), async (c) => {
           </div>
         </div>
         <div>
-          <div class="card">
+          <div class="card" id="password" style="scroll-margin-top:1rem">
             <div class="card-head">
               <h2>
                 <Icon name="key-round" /> تغيير كلمة المرور

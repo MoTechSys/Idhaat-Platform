@@ -11,10 +11,10 @@ import { lessonsFor } from '../lib/queries'
 import { notFound, page } from '../lib/render'
 import { fmtDate, fmtDateTime, isDate, nowSec, todayRiyadh } from '../lib/time'
 import type { AppEnv, Role } from '../lib/types'
-import { Empty, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
+import { Avatar, Empty, Money, PageHead, Pager, Person, Stat, Toolbar } from '../views/layout'
 import { pageInfo, readPage } from '../lib/paging'
 import { AvatarEditor } from './profile'
-import { Icon } from '../views/icons'
+import { Icon, IconTile } from '../views/icons'
 import { LessonItem } from './lessons'
 
 export const adminRoutes = new Hono<AppEnv>()
@@ -44,87 +44,85 @@ adminRoutes.get('/admin', async (c) => {
     db.prepare(`SELECT COUNT(*) AS n FROM leads WHERE status = 'new'`).first<{ n: number }>(),
   ])
   const live = lessonsToday.filter((l) => lessonPhase(l, now) === 'live')
-  const upcoming = lessonsToday.filter((l) => ['open', 'upcoming'].includes(lessonPhase(l, now))).slice(0, 6)
-  const overdue = insts.filter((i) => i.state === 'overdue')
+  const upcoming = lessonsToday.filter((l) => ['open', 'upcoming'].includes(lessonPhase(l, now)))
+  const overdue = insts.filter((i) => i.state === 'overdue').sort((x, y) => y.remaining - x.remaining)
   const soon = insts.filter((i) => i.state === 'due_soon' || i.state === 'partial')
   const zoomLive = live.filter((l) => l.provider === 'zoom').length
+  const overdueSum = overdue.reduce((s, i) => s + i.remaining, 0)
+  // الرئيسية = نظرة عامة فقط: مؤشرات + إجراءات + ملخصات قصيرة (≤ 5 صفوف) مع «عرض الكل»
+  const nowList = [...live, ...upcoming].slice(0, 5)
+  const moreLessons = live.length + upcoming.length - nowList.length
   return page(
     c,
     'لوحة الإدارة',
     <>
-      <PageHead title={`أهلاً ${user.name}`} sub={fmtDateTime(now)}>
-        <a class="btn" href="/admin/lessons">
-          + جدولة حصة
-        </a>
-      </PageHead>
+      <PageHead title={`أهلاً، ${user.name.replace(/^أ\.\s*/, '').split(' ')[0]}`} sub={fmtDateTime(now)} />
       <div class="stats">
-        <Stat label="حصص مباشرة الآن" value={<span class="num">{live.length}</span>} sub={`زوم ${zoomLive}/${counts?.rooms ?? 0} • بث المنصة ${live.length - zoomLive}`} tone="bad" />
-        <Stat label="المحصّل هذا الشهر" value={<Money v={fin.collected} />} sub={`${fin.count} دفعة`} tone="ok" />
-        <Stat label="أقساط متأخرة" value={<Money v={overdue.reduce((s, i) => s + i.remaining, 0)} />} sub={`${overdue.length} قسط`} tone="warn" />
-        <Stat label="الطلاب / المعلمات" value={<span class="num">{`${counts?.students ?? 0} / ${counts?.teachers ?? 0}`}</span>} sub={`${counts?.courses ?? 0} دورة نشطة`} tone="teal" />
+        <Stat href="/admin/live" label="مباشر الآن" value={<span class="num">{live.length}</span>} sub={`زوم ${zoomLive}/${counts?.rooms ?? 0} • بث المنصة ${live.length - zoomLive}`} tone="bad" />
+        <Stat href="/admin/finance" label="المحصّل هذا الشهر" value={<Money v={fin.collected} />} sub={`${fin.count} دفعة`} tone="ok" />
+        <Stat href="/admin/finance/installments?filter=overdue" label="متأخرات" value={<Money v={overdueSum} />} sub={`${overdue.length} قسط`} tone="warn" />
+        <Stat href="/admin/users?role=student" label="الطلاب" value={<span class="num">{counts?.students ?? 0}</span>} sub={`${counts?.teachers ?? 0} معلمة • ${counts?.courses ?? 0} دورة`} tone="teal" />
       </div>
-      {!!leads?.n && (
-        <div class="alert info flex between">
-          <span><Icon name="inbox" /> لديك {leads.n} طلب تسجيل جديد من الموقع.</span>
-          <a href="/admin/leads" class="btn btn-sm btn-soft">
-            عرض
-          </a>
-        </div>
-      )}
-      <div class="grid grid-2">
-        <div class="card">
-          <div class="card-head">
-            <h2><Icon name="radio" /> الآن والقادم اليوم</h2>
+
+      <div class="quick">
+        <a href="/lessons#new"><IconTile name="calendar-plus" tone="brand" size="sm" /> جدولة حصة</a>
+        <a href="/admin/users?role=student#new"><IconTile name="user-plus" tone="teal" size="sm" /> طالب جديد</a>
+        <a href="/admin/finance/installments"><IconTile name="wallet-cards" tone="ok" size="sm" /> تسجيل دفعة</a>
+        <a href="/admin/courses#new"><IconTile name="book-open" tone="info" size="sm" /> دورة جديدة</a>
+        <a href="/admin/finance/expenses#new"><IconTile name="receipt-text" tone="warn" size="sm" /> مصروف</a>
+        <a href="/admin/leads">
+          <IconTile name="inbox" tone="pink" size="sm" /> الطلبات
+          {!!leads?.n && <span class="badge bad" style="margin-inline-start:auto">{leads.n}</span>}
+        </a>
+      </div>
+
+      <div class="grid grid-main">
+        <section>
+          <div class="sec-title">
+            <h2><Icon name="radio" /> الحصص الآن والقادمة اليوم</h2>
             <a href="/admin/live">عرض الكل</a>
           </div>
-          {live.length + upcoming.length ? (
-            <div class="list">
-              {[...live, ...upcoming].map((l) => (
-                <LessonItem l={l} now={now} user={user} />
-              ))}
-            </div>
-          ) : (
-            <Empty icon="coffee" text="لا توجد حصص اليوم." />
-          )}
-        </div>
-        <div class="card">
-          <div class="card-head">
-            <h2><Icon name="calendar-clock" /> متابعة التحويلات</h2>
-            <a href="/admin/finance/installments">الكل</a>
+          <div class="list">
+            {nowList.length ? nowList.map((l) => <LessonItem l={l} now={now} user={user} compact />) : <Empty icon="coffee" text="لا توجد حصص متبقية اليوم." />}
+            {moreLessons > 0 && (
+              <a class="list-more" href="/admin/live">
+                و{moreLessons} حصة أخرى اليوم <Icon name="chevron-left" />
+              </a>
+            )}
           </div>
-          {overdue.length + soon.length ? (
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>الطالب</th>
-                    <th>الدورة</th>
-                    <th>الاستحقاق</th>
-                    <th class="money">المتبقي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...overdue, ...soon].slice(0, 8).map((i) => (
-                    <tr>
-                      <td>
-                        <a href={`/admin/users/${i.student_id}`}>{i.student_name}</a>
-                      </td>
-                      <td>{i.course_title}</td>
-                      <td>
-                        <span class={`badge ${i.state === 'overdue' ? 'bad' : 'warn'}`}>{fmtDate(i.due_date)}</span>
-                      </td>
-                      <td class="money">
-                        <Money v={i.remaining} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Empty icon="circle-check" text="لا توجد أقساط متأخرة أو مستحقة قريباً." />
-          )}
-        </div>
+        </section>
+        <section>
+          <div class="sec-title">
+            <h2><Icon name="calendar-clock" /> متابعة التحويلات</h2>
+            <a href="/admin/finance/installments">عرض الكل</a>
+          </div>
+          <div class="list">
+            {overdue.length + soon.length ? (
+              [...overdue, ...soon].slice(0, 5).map((i) => (
+                <a class="item" href={`/admin/enrollments/${i.enrollment_id}`}>
+                  <Avatar name={i.student_name} id={i.student_id} v={i.student_avatar_v} size="sm" />
+                  <div class="grow">
+                    <div class="title">{i.student_name}</div>
+                    <div class="meta">
+                      <span>{i.course_title}</span>
+                      <span class={i.state === 'overdue' ? 'neg' : ''}>{i.state === 'overdue' ? 'متأخر منذ' : 'يستحق'} {fmtDate(i.due_date)}</span>
+                    </div>
+                  </div>
+                  <b class={i.state === 'overdue' ? 'neg' : ''}>
+                    <Money v={i.remaining} />
+                  </b>
+                </a>
+              ))
+            ) : (
+              <Empty icon="circle-check" text="لا توجد أقساط متأخرة أو مستحقة قريباً." />
+            )}
+            {overdue.length + soon.length > 5 && (
+              <a class="list-more" href="/admin/finance/installments">
+                و{overdue.length + soon.length - 5} قسطاً آخر <Icon name="chevron-left" />
+              </a>
+            )}
+          </div>
+        </section>
       </div>
     </>,
   )
@@ -206,13 +204,6 @@ adminRoutes.get('/admin/users', async (c) => {
     title,
     <>
       <PageHead title={title} sub={`${total} حساب`} />
-      <div class="tabs">
-        {(['student', 'teacher', 'admin'] as Role[]).map((r) => (
-          <a href={`/admin/users?role=${r}`} class={r === role ? 'active' : ''}>
-            {r === 'teacher' ? 'المعلمات' : r === 'admin' ? 'المشرفون' : 'الطلاب'}
-          </a>
-        ))}
-      </div>
       <Toolbar q={q} placeholder="بحث بالاسم أو الجوال" hidden={{ role }}>
         <select name="status" aria-label="الحالة">
           <option value="">كل الحالات</option>
@@ -224,7 +215,7 @@ adminRoutes.get('/admin/users', async (c) => {
           </option>
         </select>
       </Toolbar>
-      <details class="drop">
+      <details class="drop" id="new">
         <summary>إضافة {roleNames[role]}</summary>
         <div>
           <form method="post" action="/admin/users">
@@ -267,14 +258,14 @@ adminRoutes.get('/admin/users', async (c) => {
           </thead>
           <tbody>
             {rows.map((u) => (
-              <tr>
+              <tr data-href={`/admin/users/${u.id}`}>
                 <td>
                   <Person id={u.id} name={u.name} v={u.avatar_v} href={`/admin/users/${u.id}`} sub={u.guardian_name ? `ولي الأمر: ${u.guardian_name}` : undefined} />
                 </td>
                 <td class="num">{u.phone}</td>
                 <td>{role === 'teacher' ? u.courses : role === 'student' ? u.enrolls : ''}</td>
                 <td>{u.active ? <span class="badge ok">نشط</span> : <span class="badge gray">موقوف</span>}</td>
-                <td>
+                <td class="hide-sm">
                   <a class="btn btn-ghost btn-sm" href={`/admin/users/${u.id}`}>
                     فتح
                   </a>
@@ -626,7 +617,7 @@ adminRoutes.get('/admin/courses', async (c) => {
     'الدورات',
     <>
       <PageHead title="الدورات" sub="لكل دورة: الطلاب، التحصيل، مستحقات المعلمة والجهة، وصافي الربح" />
-      <details class="drop">
+      <details class="drop" id="new">
         <summary>دورة جديدة</summary>
         <div>
           <form method="post" action="/admin/courses">
@@ -745,16 +736,16 @@ adminRoutes.get('/admin/courses/:id', async (c) => {
       {fin.collected > 0 && (
         <div class="card">
           <div class="bar" title="توزيع المحصّل">
-            <span style={`width:${bar(fin.teacher_due)}%;background:#5b3df5`}></span>
-            <span style={`width:${bar(fin.partner_due)}%;background:#ffb020`}></span>
-            <span style={`width:${bar(fin.expenses)}%;background:#e5484d`}></span>
-            <span style={`width:${bar(Math.max(0, fin.net))}%;background:#12a150`}></span>
+            <span style={`width:${bar(fin.teacher_due)}%;background:var(--brand)`}></span>
+            <span style={`width:${bar(fin.partner_due)}%;background:var(--accent)`}></span>
+            <span style={`width:${bar(fin.expenses)}%;background:var(--bad)`}></span>
+            <span style={`width:${bar(Math.max(0, fin.net))}%;background:var(--ok)`}></span>
           </div>
           <div class="legend">
-            <span><i style="background:#5b3df5"></i>المعلمة</span>
-            <span><i style="background:#ffb020"></i>الجهات</span>
-            <span><i style="background:#e5484d"></i>المصروفات</span>
-            <span><i style="background:#12a150"></i>صافي الربح</span>
+            <span><i style="background:var(--brand)"></i>المعلمة</span>
+            <span><i style="background:var(--accent)"></i>الجهات</span>
+            <span><i style="background:var(--bad)"></i>المصروفات</span>
+            <span><i style="background:var(--ok)"></i>صافي الربح</span>
           </div>
         </div>
       )}
@@ -993,7 +984,7 @@ adminRoutes.get('/admin/rooms', async (c) => {
           </div>
         ))}
       </div>
-      <details class="drop">
+      <details class="drop" id="new">
         <summary>إضافة قاعة</summary>
         <div>
           <form method="post" action="/admin/rooms">
@@ -1058,7 +1049,7 @@ adminRoutes.get('/admin/partners', async (c) => {
     'الجهات',
     <>
       <PageHead title="الجهات" sub="الجهات التي تجلب طلاباً للدورات، ونسبة عمولة كل جهة من المحصّل" />
-      <details class="drop" open={!rows.length}>
+      <details class="drop" id="new" open={!rows.length}>
         <summary>جهة جديدة</summary>
         <div>
           <form method="post" action="/admin/partners">
